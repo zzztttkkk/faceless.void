@@ -23,7 +23,7 @@ var _ fv.IEvent = (*OnUserCreated)(nil)
 func TestEventBus(T *testing.T) {
 	ebus := fv.NewEventBus(nil)
 
-	ebus.Register(reflect.TypeOf(OnUserCreated{}), func(at int64, evt fv.IEvent) {
+	ebus.AddListener(reflect.TypeOf(OnUserCreated{}), func(at int64, evt fv.IEvent) {
 		eptr := evt.(*OnUserCreated)
 		fmt.Println(at, eptr)
 	})

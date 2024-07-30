@@ -15,7 +15,7 @@ type difnc struct {
 }
 
 type _DIContainer struct {
-	lock    sync.Mutex
+	lock    sync.RWMutex
 	execed  bool
 	fncs    []*difnc
 	valpool map[reflect.Type]reflect.Value
@@ -44,8 +44,8 @@ func (dic *_DIContainer) append(v reflect.Value) {
 }
 
 func (dic *_DIContainer) get(k reflect.Type) (reflect.Value, bool) {
-	dic.lock.Lock()
-	defer dic.lock.Unlock()
+	dic.lock.RLock()
+	defer dic.lock.RUnlock()
 	v, ok := dic.valpool[k]
 	return v, ok
 }
