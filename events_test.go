@@ -14,6 +14,8 @@ type OnUserCreated struct {
 	Email string
 }
 
+var OnUserCreatedType = reflect.TypeOf(OnUserCreated{})
+
 func (o *OnUserCreated) UpdateByContextValue(ctx context.Context) bool {
 	return true
 }
@@ -23,10 +25,13 @@ var _ fv.IEvent = (*OnUserCreated)(nil)
 func TestEventBus(T *testing.T) {
 	ebus := fv.NewEventBus(nil)
 
-	ebus.AddListener(reflect.TypeOf(OnUserCreated{}), func(at int64, evt fv.IEvent) {
+	fnc := func(at int64, evt fv.IEvent) {
 		eptr := evt.(*OnUserCreated)
 		fmt.Println(at, eptr)
-	})
+	}
 
-	ebus.Emit(context.Background(), &OnUserCreated{Id: 1, Email: "test@test.com"}, nil)
+	ebus.AddListener(OnUserCreatedType, fnc)
+	ebus.RemoveListener(OnUserCreatedType, fnc)
+
+	ebus.Emit(context.Background(), OnUserCreatedType, &OnUserCreated{Id: 1, Email: "test@test.com"}, nil)
 }
