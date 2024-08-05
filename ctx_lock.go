@@ -16,9 +16,9 @@ func CtxValForLockAcquireSleepStep(ctx context.Context, duration time.Duration) 
 	return context.WithValue(ctx, _ctx_key_for_lock_sleep_step, duration)
 }
 
-func get_lock_sleep_step(ctx context.Context) time.Duration {
+func getLockSleepStep(ctx context.Context) time.Duration {
 	tmp := ctx.Value(_ctx_key_for_lock_sleep_step)
-	var duration time.Duration = time.Millisecond * 30
+	var duration = time.Millisecond * 30
 	if tmp != nil {
 		v, ok := tmp.(time.Duration)
 		if ok {
@@ -29,7 +29,7 @@ func get_lock_sleep_step(ctx context.Context) time.Duration {
 }
 
 func AcquireLock(ctx context.Context, v tryLocker) error {
-	duration := get_lock_sleep_step(ctx)
+	duration := getLockSleepStep(ctx)
 	for {
 		if v.TryLock() {
 			return nil
@@ -53,8 +53,8 @@ type tryRLocker interface {
 
 var _ tryRLocker = (*sync.RWMutex)(nil)
 
-func AcquireRLock(ctx context.Context, v tryRLocker, sleep time.Duration) error {
-	duration := get_lock_sleep_step(ctx)
+func AcquireRLock(ctx context.Context, v tryRLocker) error {
+	duration := getLockSleepStep(ctx)
 	for {
 		if v.TryRLock() {
 			return nil

@@ -16,7 +16,7 @@ import (
 type RotateKind int
 
 const (
-	RotateKindDaily RotateKind = RotateKind(iota)
+	RotateKindDaily = RotateKind(iota)
 	RotateKindHourly
 	RotateKindMinutely
 	RotateKindFileSize
@@ -51,19 +51,23 @@ func NewAutoRotateFile(fp string, opts *RotateOptions) io.WriteCloser {
 		opts.BufferSize = 4096
 	}
 
+	if opts.Kind == RotateKindFileSize && opts.MaxSize < 1 {
+		panic(errors.New(`rotate by size, but max size < 1`))
+	}
+
 	ext := path.Ext(fp)
 
 	arf := &_AutoRotateFile{fp: fp, opts: opts, fext: ext, fname: fp[0 : len(fp)-len(ext)]}
 	if arf.opts.Kind != RotateKindFileSize {
-		arf.rotate_by_time()
+		arf.rotateByTime()
 	}
 	return arf
 }
 
-func (arf *_AutoRotateFile) do_rotate(newname string) {
-	err := arf.do_close()
+func (arf *_AutoRotateFile) doRotate(newname string) {
+	err := arf.doClose()
 	if err != nil {
-		err = fmt.Errorf("rotate error: when flush current file, %s", err)
+		err = fmt.Errorf("rotate error: when flush, %s", err)
 		if arf.opts.OnRotateError != nil {
 			arf.opts.OnRotateError(err)
 		} else {
@@ -81,7 +85,7 @@ func (arf *_AutoRotateFile) do_rotate(newname string) {
 	}
 }
 
-func (arf *_AutoRotateFile) rotate_by_time() {
+func (arf *_AutoRotateFile) rotateByTime() {
 	now := time.Now()
 	var end time.Time
 	var timepart string
@@ -119,12 +123,12 @@ func (arf *_AutoRotateFile) rotate_by_time() {
 		if exists, _ := internal.FsExists(newname); exists {
 			newname = fmt.Sprintf(`%s.%s.%d%s`, arf.fname, timepart, time.Now().Nanosecond(), arf.fext)
 		}
-		arf.do_rotate(newname)
-		arf.rotate_by_time()
+		arf.doRotate(newname)
+		arf.rotateByTime()
 	})
 }
 
-func (arf *_AutoRotateFile) do_close() error {
+func (arf *_AutoRotateFile) doClose() error {
 	if arf.fins == nil {
 		return nil
 	}
@@ -149,7 +153,7 @@ func (arf *_AutoRotateFile) Close() error {
 	if arf.timer != nil {
 		arf.timer.Stop()
 	}
-	return arf.do_close()
+	return arf.doClose()
 }
 
 var (
@@ -175,7 +179,11 @@ func (arf *_AutoRotateFile) Write(p []byte) (n int, err error) {
 		}
 		arf.currentSize = stat.Size()
 		arf.fins = f
-		arf.w = bufio.NewWriterSize(arf.fins, arf.opts.BufferSize)
+		if arf.w == nil {
+			arf.w = bufio.NewWriterSize(arf.fins, arf.opts.BufferSize)
+		} else {
+			arf.w.Reset(arf.fins)
+		}
 	}
 
 	n, err = arf.w.Write(p)
@@ -183,9 +191,11 @@ func (arf *_AutoRotateFile) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 
-	arf.currentSize += int64(len(p))
-	if arf.opts.Kind == RotateKindFileSize && arf.currentSize >= arf.opts.MaxSize {
-		arf.do_rotate(fmt.Sprintf(`%s.%d%s`, arf.fname, time.Now().UnixNano(), arf.fext))
+	if arf.opts.Kind == RotateKindFileSize {
+		arf.currentSize += int64(len(p))
+		if arf.currentSize >= arf.opts.MaxSize {
+			arf.doRotate(fmt.Sprintf(`%s.%s%s`, arf.fname, time.Now().Format("20060102150405.000"), arf.fext))
+		}
 	}
 	return n, nil
 }

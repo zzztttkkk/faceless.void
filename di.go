@@ -21,6 +21,7 @@ type _DIContainer struct {
 	valpool map[reflect.Type]reflect.Value
 }
 
+//goland:noinspection GoExportedFuncWithUnexportedType
 func NewDIContainer() *_DIContainer {
 	return &_DIContainer{
 		valpool: make(map[reflect.Type]reflect.Value),
@@ -28,7 +29,7 @@ func NewDIContainer() *_DIContainer {
 }
 
 func (dic *_DIContainer) errorf(v string, args ...any) error {
-	return internal.ErrNamespace("di").Errorf(v, args...)
+	return internal.ErrNamespace{Namespace: "di"}.Errorf(v, args...)
 }
 
 func (dic *_DIContainer) append(v reflect.Value) {

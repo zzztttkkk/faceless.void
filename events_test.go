@@ -31,7 +31,8 @@ func TestEventBus(T *testing.T) {
 	}
 
 	ebus.AddListener(OnUserCreatedType, fnc)
-	ebus.RemoveListener(OnUserCreatedType, fnc)
+	//ebus.RemoveListener(OnUserCreatedType, fnc)
 
-	ebus.Emit(context.Background(), OnUserCreatedType, &OnUserCreated{Id: 1, Email: "test@test.com"}, nil)
+	handled := ebus.Emit(context.Background(), OnUserCreatedType, &OnUserCreated{Id: 1, Email: "test@test.com"}, &fv.EventEmitOpts{Concurrency: true})
+	fmt.Println(handled)
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-func read_toml_one(typ reflect.Type, fp string) (any, error) {
+func readTomlOne(typ reflect.Type, fp string) (any, error) {
 	bs, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func LoadConfig[T any](typehint T, fps ...string) (*T, error) {
 	typ := reflect.TypeOf(typehint)
 	var result *T
 	for _, fp := range fps {
-		val, err := read_toml_one(typ, fp)
+		val, err := readTomlOne(typ, fp)
 		if err != nil {
 			return nil, fmt.Errorf("read config file error: %w", err)
 		}

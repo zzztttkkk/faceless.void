@@ -79,7 +79,7 @@ var (
 	_DefaultEventEmitOpts = &EventEmitOpts{}
 )
 
-func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts) {
+func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts) bool {
 	var now = time.Now().UnixNano()
 	if opts == nil {
 		opts = _DefaultEventEmitOpts
@@ -89,7 +89,7 @@ func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts
 	handlers := ebus.listeners[evttype]
 	if len(handlers) < 1 {
 		ebus.lock.RUnlock()
-		return
+		return false
 	}
 	ebus.lock.RUnlock()
 
@@ -97,17 +97,18 @@ func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts
 		for _, fnc := range handlers {
 			fnc.wrapped(now, evt)
 		}
-		return
+		return true
 	}
 
 	for _, fnc := range handlers {
 		go fnc.wrapped(now, evt)
 	}
+	return true
 }
 
-func (ebus *EventBus) Emit(ctx context.Context, evttype reflect.Type, evt IEvent, opts *EventEmitOpts) {
+func (ebus *EventBus) Emit(ctx context.Context, evttype reflect.Type, evt IEvent, opts *EventEmitOpts) bool {
 	if !evt.UpdateByContextValue(ctx) {
-		return
+		return false
 	}
-	ebus.emit(evttype, evt, opts)
+	return ebus.emit(evttype, evt, opts)
 }
