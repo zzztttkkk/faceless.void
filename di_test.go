@@ -19,13 +19,19 @@ type E struct{}
 
 type F int
 
-type G struct{}
+type G struct {
+	V int
+}
 
 func TestDi(t *testing.T) {
 	dic := fv.NewDIContainer()
 
-	dic.Prepare(func() (*C, F, fv.TokenValue[*G]) {
-		return &C{}, F(12), fv.NewTokenValue("12", &G{})
+	dic.Prepare(func() (*C, F, []fv.TokenValue[*G]) {
+		return &C{}, F(12), []fv.TokenValue[*G]{
+			fv.NewTokenValue("12", &G{V: 34}),
+			fv.NewTokenValue("13", &G{V: 45}),
+			fv.NewTokenValue("14", &G{V: 56}),
+		}
 	})
 
 	dic.Register(func(a *A, c *C) (*B, *D) {
@@ -47,8 +53,9 @@ func TestDi(t *testing.T) {
 	})
 
 	dic.Register(func(f F, gtvg fv.TokenValueGetter[*G]) {
-		g := gtvg.Get("12")
-		fmt.Println("F", f, g)
+		g12 := gtvg.Get("12")
+		g13 := gtvg.Get("13")
+		fmt.Println("F", f, g12, g13)
 	})
 
 	dic.Run()

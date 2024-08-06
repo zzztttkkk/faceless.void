@@ -81,10 +81,7 @@ func (dic *_DIContainer) errorf(v string, args ...any) error {
 	return internal.ErrNamespace{Namespace: "di"}.Errorf(v, args...)
 }
 
-func (dic *_DIContainer) append(v reflect.Value) {
-	dic.lock.Lock()
-	defer dic.lock.Unlock()
-
+func (dic *_DIContainer) appendone(v reflect.Value) {
 	var vtype reflect.Type
 	var tokenptr *string
 	if v.CanConvert(tokenValueInterfaceType) {
@@ -114,6 +111,19 @@ func (dic *_DIContainer) append(v reflect.Value) {
 		panic(dic.errorf("`%s` is already registered", vtype))
 	}
 	dic.valpool[vtype] = v
+}
+
+func (dic *_DIContainer) append(v reflect.Value) {
+	dic.lock.Lock()
+	defer dic.lock.Unlock()
+
+	if v.Kind() == reflect.Slice && v.Type().Elem().AssignableTo(tokenValueInterfaceType) {
+		for i := 0; i < v.Len(); i++ {
+			dic.appendone(v.Index(i))
+		}
+		return
+	}
+	dic.appendone(v)
 }
 
 func (dic *_DIContainer) get(k reflect.Type) (reflect.Value, bool) {
@@ -269,4 +279,5 @@ func (dic *_DIContainer) Run() {
 
 	clear(dic.fncs)
 	clear(dic.valpool)
+	clear(dic.tokenvalpool)
 }
