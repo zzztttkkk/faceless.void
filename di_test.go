@@ -19,11 +19,13 @@ type E struct{}
 
 type F int
 
+type G struct{}
+
 func TestDi(t *testing.T) {
 	dic := fv.NewDIContainer()
 
-	dic.Pre(func() (*C, F) {
-		return &C{}, F(12)
+	dic.Prepare(func() (*C, F, fv.TokenValue[*G]) {
+		return &C{}, F(12), fv.NewTokenValue("12", &G{})
 	})
 
 	dic.Register(func(a *A, c *C) (*B, *D) {
@@ -44,8 +46,9 @@ func TestDi(t *testing.T) {
 		fmt.Println("D 2")
 	})
 
-	dic.Register(func(f F) {
-		fmt.Println("F", f)
+	dic.Register(func(f F, gtvg fv.TokenValueGetter[*G]) {
+		g := gtvg.Get("12")
+		fmt.Println("F", f, g)
 	})
 
 	dic.Run()
