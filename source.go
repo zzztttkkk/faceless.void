@@ -14,6 +14,7 @@ func SOURCE() string {
 	return file
 }
 
+//goland:noinspection ALL
 func SOURCE_DIR() string {
 	return path.Dir(SOURCE())
 }

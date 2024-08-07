@@ -28,7 +28,7 @@ func NewEventBus(onpanic func(err any, at int64, evt any)) *EventBus {
 	return &EventBus{listeners: map[reflect.Type][]_ListenerEle{}, onpanic: onpanic}
 }
 
-func (ebus *EventBus) AddListener(evttype reflect.Type, fnc EventListener) {
+func (ebus *EventBus) AddListener(evttype reflect.Type, fnc EventListener) *EventBus {
 	ebus.lock.Lock()
 	defer ebus.lock.Unlock()
 
@@ -48,9 +48,10 @@ func (ebus *EventBus) AddListener(evttype reflect.Type, fnc EventListener) {
 		},
 		raw: fnc,
 	})
+	return ebus
 }
 
-func (ebus *EventBus) RemoveListener(evttype reflect.Type, fnc EventListener) {
+func (ebus *EventBus) RemoveListener(evttype reflect.Type, fnc EventListener) *EventBus {
 	ebus.lock.Lock()
 	defer ebus.lock.Unlock()
 
@@ -63,12 +64,14 @@ func (ebus *EventBus) RemoveListener(evttype reflect.Type, fnc EventListener) {
 		nls = append(nls, l)
 	}
 	ebus.listeners[evttype] = nls
+	return ebus
 }
 
-func (ebus *EventBus) RemoveAllListener(evttype reflect.Type) {
+func (ebus *EventBus) RemoveAllListener(evttype reflect.Type) *EventBus {
 	ebus.lock.Lock()
 	defer ebus.lock.Unlock()
 	delete(ebus.listeners, evttype)
+	return ebus
 }
 
 type EventEmitOpts struct {

@@ -163,7 +163,7 @@ func (dic *_DIContainer) getbytoken(token string, k reflect.Type) reflect.Value 
 	return v
 }
 
-func (dic *_DIContainer) Prepare(fnc any) {
+func (dic *_DIContainer) Prepare(fnc any) *_DIContainer {
 	rv := reflect.ValueOf(fnc)
 	if rv.IsNil() || rv.Kind() != reflect.Func {
 		panic(dic.errorf("`%s` is not a function", fnc))
@@ -180,9 +180,10 @@ func (dic *_DIContainer) Prepare(fnc any) {
 	for _, v := range rv.Call(nil) {
 		dic.append(v)
 	}
+	return dic
 }
 
-func (dic *_DIContainer) Register(fnc any) {
+func (dic *_DIContainer) Register(fnc any) *_DIContainer {
 	rv := reflect.ValueOf(fnc)
 	if rv.IsNil() || rv.Kind() != reflect.Func {
 		panic(dic.errorf("`%s` is not a function", fnc))
@@ -194,6 +195,7 @@ func (dic *_DIContainer) Register(fnc any) {
 		ele.deps = append(ele.deps, argtype)
 	}
 	dic.fncs = append(dic.fncs, ele)
+	return dic
 }
 
 func (dic *_DIContainer) Run() {
