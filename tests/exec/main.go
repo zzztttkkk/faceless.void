@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
+	"exec/internal"
 	"fmt"
 	"os"
 
-	"sync"
-	"time"
-
 	fv "github.com/zzztttkkk/faceless.void"
+	"sync"
 )
 
 func main() {
@@ -20,9 +19,7 @@ func main() {
 	})
 
 	fv.Run(func(ctx context.Context) {
-		time.AfterFunc(time.Second*50, func() {
-			fmt.Println("done")
-		})
+		internal.DIC.Run()
 		<-ctx.Done()
 	})
 }

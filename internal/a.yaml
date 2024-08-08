@@ -1,0 +1,4 @@
+Proxy:
+  - { name: 'xxx', type: ss, server: gtm1.ktmwan.com, port: 27253, cipher: chacha20-ietf-poly1305, password: 3ee8d1ea-7156-4580-9b4b-43c119787eee }
+'Proxy Group':
+  - { name: rixCloud, type: select, proxies: ['xxx'] }
