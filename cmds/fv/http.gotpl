@@ -1,0 +1,76 @@
+// generated at {{ .Now }}
+
+package {{ .PkgName }}
+
+import (
+"github.com/gin-gonic/gin"
+fv "github.com/zzztttkkk/faceless.void"
+_diclib "{{ .DicImportName }}"
+)
+
+func init() {
+group := fv.NewHttpGroup(fv.SOURCE_DIR())
+
+{{ range $ele := Funcs }}
+    group.Register(func (tvg *fv.TokenValueGetter[*fv.HttpGroup]) {
+    group := tvg.Get()
+    group.Register({{ $ele.Methods }}, {{ $ele.Path }}, func(ctx *gin.Context){
+    var err error
+    {{ range $idx, $arg := $ele.Args }}
+        var arg{{$idx}} {{$arg.StructType}}
+        err = ctx.Bind(&arg{{$idx}})
+        if err != nil {
+        }
+    {{end}}
+
+    {{ if $ele.ReturnKind eq "VE" }}
+        v, err := {{$ele.FuncName}}(
+        {{ range $idx, $arg := $ele.Args }}
+            &arg{{$idx}},
+        {{end}}
+        )
+        if err != nil {
+        fv.ResponseError(ctx, err)
+        }else{
+        fv.ResponseAny(ctx, v)
+        }
+        return
+    {{ else if $ele.ReturnKind eq "E" }}
+        err = {{$ele.FuncName}}(
+        {{ range $idx, $arg := $ele.Args }}
+            &arg{{$idx}},
+        {{end}}
+        )
+        if err == nil {
+        ctx.Status(200);
+        }else{
+        fv.ResponseError(ctx, err)
+        }
+        return
+    {{else if $ele.ReturnKind eq "V" }}
+        fv.ResponseAny(
+        ctx,
+        {{$ele.FuncName}}(
+        {{ range $idx, $arg := $ele.Args }}
+            &arg{{$idx}},
+        {{end}}
+        ),
+        )
+        return
+    {{else}}
+        {{$ele.FuncName}}(
+        {{ range $idx, $arg := $ele.Args }}
+            &arg{{$idx}},
+        {{end}}
+        )
+    {{ end }}
+    });
+    });
+
+    _diclib.{{ .DICValueName }}.Prepare(func () fv.TokenValue[*fv.HttpGroup] {
+    return fv.NewTokenValue(fv.SOURCE_DIR(), group)
+    });
+{{ end }}
+
+
+}

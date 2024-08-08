@@ -1,14 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"github.com/alecthomas/kong"
 )
 
 type App struct {
 	Generate struct {
-		Recurse      bool     `help:"recurse scan"`
-		ScanPatterns []string `arg:"" name:"patterns" help:"path patterns to scan."`
+		Recurse   bool     `help:"recurse scan"`
+		ScanPaths []string `arg:"" name:"paths" help:"paths to scan."`
 	} `cmd:""`
 }
 
@@ -16,9 +15,10 @@ func main() {
 	app := &App{}
 	ctx := kong.Parse(app)
 	switch ctx.Command() {
-	case "generate":
+	case "generate <paths>":
 		{
-			fmt.Println("Generating scan patterns...", app.Generate)
+			RunGenerate(app.Generate.ScanPaths)
+			return
 		}
 	default:
 		{

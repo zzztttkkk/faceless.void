@@ -10,9 +10,11 @@ import (
 )
 
 type httpFunc struct {
-	Methods string
-	Path    string
-	Fnc     gin.HandlerFunc
+	Methods    string
+	Path       string
+	Fnc        gin.HandlerFunc
+	InputTypes []reflect.Type
+	OutputType reflect.Type
 }
 
 type HttpGroup struct {
@@ -42,65 +44,14 @@ var (
 	badArgsMsg = "the arguments of `fnc`, except the first one which must be ctx, all others must be pointer to struct"
 )
 
-func (g *HttpGroup) Register(methods string, path string, fnc any) *HttpGroup {
-	fv := reflect.ValueOf(fnc)
-	if fv.Kind() != reflect.Func {
-		panic(g.mkerr("`fnc` is not a function, %v", fnc))
-	}
-
-	ft := fv.Type()
-	if ft.NumIn() < 1 || ft.In(0) != ctxInterfaceType {
-		panic(g.mkerr("`fnc` must accept at least one argument, and the first one must be `context.Context`"))
-	}
-	if ft.NumOut() < 1 || ft.NumOut() > 2 {
-		panic(g.mkerr("`fnc` must return one or two values, and the second return value must be `error`"))
-	}
-
-	argTypes := make([]reflect.Type, 0)
-	for i := 1; i < ft.NumIn(); i++ {
-		at := ft.In(i)
-		if at.Kind() != reflect.Ptr {
-			panic(g.mkerr(badArgsMsg))
-		}
-		at = at.Elem()
-		if at.Kind() != reflect.Struct {
-			panic(g.mkerr(badArgsMsg))
-		}
-		argTypes = append(argTypes, at)
-	}
-
-	exec := func(c *gin.Context) []reflect.Value {
-		args := make([]reflect.Value, ft.NumIn())
-		args[0] = reflect.ValueOf(c)
-		for idx, at := range argTypes {
-			av := reflect.New(at)
-			if e := c.Bind(av.Interface()); e != nil {
-				panic(e)
-			}
-			args[idx+1] = av
-		}
-		return fv.Call(args)
-	}
-
-	var handleFnc gin.HandlerFunc
-	if ft.NumOut() == 2 {
-		handleFnc = func(c *gin.Context) {
-			rvs := exec(c)
-			outv, errv := rvs[0], rvs[1]
-			if errv.IsNil() {
-				ginRespAny(c, errv)
-			} else {
-				ginRespAny(c, outv)
-			}
-		}
-	} else {
-		handleFnc = func(c *gin.Context) {
-			out := exec(c)[0]
-			ginRespAny(c, out)
-		}
-	}
-
-	g.fncs = append(g.fncs, httpFunc{Methods: methods, Path: path, Fnc: handleFnc})
+func (g *HttpGroup) Register(methods string, path string, fnc gin.HandlerFunc, inputTypes []reflect.Type, outType reflect.Type) *HttpGroup {
+	g.fncs = append(g.fncs, httpFunc{
+		Methods:    methods,
+		Path:       path,
+		Fnc:        fnc,
+		InputTypes: inputTypes,
+		OutputType: outType,
+	})
 	return g
 }
 

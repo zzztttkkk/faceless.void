@@ -7,7 +7,8 @@ type RegisterParams struct {
 	Password string `binding:"required"`
 }
 
-//go:fv http post,put /register
+// Register
+// :fv: http post,put /register
 func Register(ctx context.Context, params *RegisterParams) (*LoginResult, error) {
 	return nil, nil
 }

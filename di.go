@@ -3,10 +3,8 @@ package fv
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"sync"
-
 	"github.com/zzztttkkk/faceless.void/internal"
+	"reflect"
 )
 
 type difnc struct {
@@ -17,7 +15,6 @@ type difnc struct {
 }
 
 type _DIContainer struct {
-	lock         sync.RWMutex
 	execed       bool
 	fncs         []*difnc
 	valpool      map[reflect.Type]reflect.Value
@@ -114,9 +111,6 @@ func (dic *_DIContainer) appendone(v reflect.Value) {
 }
 
 func (dic *_DIContainer) append(v reflect.Value) {
-	dic.lock.Lock()
-	defer dic.lock.Unlock()
-
 	if v.Kind() == reflect.Slice && v.Type().Elem().AssignableTo(tokenValueInterfaceType) {
 		for i := 0; i < v.Len(); i++ {
 			dic.appendone(v.Index(i))
@@ -127,8 +121,6 @@ func (dic *_DIContainer) append(v reflect.Value) {
 }
 
 func (dic *_DIContainer) get(k reflect.Type) (reflect.Value, bool) {
-	dic.lock.RLock()
-	defer dic.lock.RUnlock()
 	v, ok := dic.valpool[k]
 	return v, ok
 }
@@ -150,8 +142,6 @@ func IsTokenNotFound(e error) bool {
 }
 
 func (dic *_DIContainer) getbytoken(token string, k reflect.Type) reflect.Value {
-	dic.lock.RLock()
-	defer dic.lock.RUnlock()
 	tvm, ok := dic.tokenvalpool[k]
 	if !ok {
 		panic(&errTokenNotFound{token: token, rtype: k})
@@ -199,13 +189,10 @@ func (dic *_DIContainer) Register(fnc any) *_DIContainer {
 }
 
 func (dic *_DIContainer) Run() {
-	dic.lock.Lock()
 	if dic.execed {
-		dic.lock.Unlock()
 		panic(dic.errorf("container already executed"))
 	}
 	dic.execed = true
-	dic.lock.Unlock()
 
 	for {
 		var remains []*difnc

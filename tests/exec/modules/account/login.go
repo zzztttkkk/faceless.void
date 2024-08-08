@@ -16,7 +16,8 @@ type LoginResult struct {
 	ExpireAt int64
 }
 
-//go:fv http post,put /login
+// Login
+// :fv: http post,put /login
 func Login(ctx context.Context, params *LoginParams) (*LoginResult, error) {
 	return nil, nil
 }
