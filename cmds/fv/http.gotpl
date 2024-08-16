@@ -9,11 +9,9 @@ _diclib "{{ .DicImportName }}"
 )
 
 func init() {
-group := fv.NewHttpGroup(fv.SOURCE_DIR())
-
 {{ range $ele := Funcs }}
     group.Register(func (tvg *fv.TokenValueGetter[*fv.HttpGroup]) {
-    group := tvg.Get()
+    group := tvg.Get(fv.SOURCE_DIR())
     group.Register({{ $ele.Methods }}, {{ $ele.Path }}, func(ctx *gin.Context){
     var err error
     {{ range $idx, $arg := $ele.Args }}
@@ -25,6 +23,7 @@ group := fv.NewHttpGroup(fv.SOURCE_DIR())
 
     {{ if $ele.ReturnKind eq "VE" }}
         v, err := {{$ele.FuncName}}(
+            ctx,
         {{ range $idx, $arg := $ele.Args }}
             &arg{{$idx}},
         {{end}}
@@ -37,6 +36,7 @@ group := fv.NewHttpGroup(fv.SOURCE_DIR())
         return
     {{ else if $ele.ReturnKind eq "E" }}
         err = {{$ele.FuncName}}(
+            ctx,
         {{ range $idx, $arg := $ele.Args }}
             &arg{{$idx}},
         {{end}}
@@ -51,6 +51,7 @@ group := fv.NewHttpGroup(fv.SOURCE_DIR())
         fv.ResponseAny(
         ctx,
         {{$ele.FuncName}}(
+            ctx,
         {{ range $idx, $arg := $ele.Args }}
             &arg{{$idx}},
         {{end}}
@@ -59,6 +60,7 @@ group := fv.NewHttpGroup(fv.SOURCE_DIR())
         return
     {{else}}
         {{$ele.FuncName}}(
+            ctx,
         {{ range $idx, $arg := $ele.Args }}
             &arg{{$idx}},
         {{end}}

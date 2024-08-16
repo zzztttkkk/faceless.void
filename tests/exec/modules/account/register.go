@@ -8,7 +8,8 @@ type RegisterParams struct {
 }
 
 // Register
-// :fv: http post,put /register
+//
+//go:fv http handler post,put /register
 func Register(ctx context.Context, params *RegisterParams) (*LoginResult, error) {
 	return nil, nil
 }

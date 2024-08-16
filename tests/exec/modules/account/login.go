@@ -17,7 +17,8 @@ type LoginResult struct {
 }
 
 // Login
-// :fv: http post,put /login
+//
+//go:fv http post,put /login
 func Login(ctx context.Context, params *LoginParams) (*LoginResult, error) {
 	return nil, nil
 }
