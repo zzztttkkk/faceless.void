@@ -8,7 +8,7 @@ import (
 )
 
 type IEvent interface {
-	UpdateByContextValue(ctx context.Context) bool
+	UpdateByContext(ctx context.Context)
 }
 
 type EventListener func(at int64, evt IEvent)
@@ -110,8 +110,6 @@ func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts
 }
 
 func (ebus *EventBus) Emit(ctx context.Context, evttype reflect.Type, evt IEvent, opts *EventEmitOpts) bool {
-	if !evt.UpdateByContextValue(ctx) {
-		return false
-	}
+	evt.UpdateByContext(ctx)
 	return ebus.emit(evttype, evt, opts)
 }

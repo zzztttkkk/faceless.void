@@ -16,8 +16,7 @@ type OnUserCreated struct {
 
 var OnUserCreatedType = reflect.TypeOf(OnUserCreated{})
 
-func (o *OnUserCreated) UpdateByContextValue(ctx context.Context) bool {
-	return true
+func (o *OnUserCreated) UpdateByContext(ctx context.Context) {
 }
 
 var _ fv.IEvent = (*OnUserCreated)(nil)
