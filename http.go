@@ -6,12 +6,8 @@ import (
 	"reflect"
 )
 
-type IHttpResponse interface {
-	Send(ctx context.Context, resp http.ResponseWriter) error
-}
-
 type IHttpHandler interface {
-	ServeHTTP(ctx context.Context) (IHttpResponse, error)
+	ServeHTTP(ctx context.Context, req *http.Request, respw http.ResponseWriter) error
 }
 
 var (
@@ -19,10 +15,10 @@ var (
 	ictxType         = reflect.TypeOf((*context.Context)(nil)).Elem()
 )
 
-type HttpHandlerFunc func(ctx context.Context) (IHttpResponse, error)
+type HttpHandlerFunc func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error
 
-func (fnc HttpHandlerFunc) ServeHTTP(ctx context.Context) (IHttpResponse, error) {
-	return fnc(ctx)
+func (fnc HttpHandlerFunc) ServeHTTP(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
+	return fnc(ctx, req, respw)
 }
 
 var _ http.Handler = (*httpEndpoint)(nil)

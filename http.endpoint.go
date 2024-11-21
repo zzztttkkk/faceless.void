@@ -88,18 +88,13 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 		rw.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
 	ctx := context.WithValue(req.Context(), ctxKeyForHttpRequest, req)
-	resp, err := endpoint.handler.ServeHTTP(ctx)
+	err := endpoint.handler.ServeHTTP(ctx, req, rw)
 	if err != nil {
-		panic(err)
-	}
-	if resp == nil {
-		rw.WriteHeader(200)
+		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write(nil)
 		return
 	}
-	resp.Send(ctx, rw)
 }
 
 var (
@@ -118,7 +113,7 @@ func RegisterHttpEndpoint(fnc any, opts ...endpointOption) {
 	filename, _ := funcv.FileLine(0)
 
 	endpoint := httpEndpoint{filename: filename}
-	endpoint.handler = endpoint.funcToHandler(funcv.Name(), rv)
+	endpoint.handler = endpoint.mkhandler(funcv.Name(), rv)
 
 	for _, opt := range opts {
 		switch opt.key {
@@ -173,12 +168,12 @@ type IHttpError interface {
 	BodyMessage(ctx context.Context) []byte
 }
 
-func (endpoint *httpEndpoint) funcToHandler(funcname string, rv reflect.Value) IHttpHandler {
+func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) IHttpHandler {
 	hf, ok := rv.Interface().(HttpHandlerFunc)
 	if ok {
 		return hf
 	}
-	hfRaw, ok := rv.Interface().(func(req context.Context) (IHttpResponse, error))
+	hfRaw, ok := rv.Interface().(func(context.Context, *http.Request, http.ResponseWriter) error)
 	if ok {
 		return HttpHandlerFunc(hfRaw)
 	}
@@ -186,12 +181,13 @@ func (endpoint *httpEndpoint) funcToHandler(funcname string, rv reflect.Value) I
 	rt := rv.Type()
 	numin := rt.NumIn()
 
-	var argPeeks []func(req context.Context) (reflect.Value, error)
-	var firstArgIsCtx bool
+	var argPeeks []func(ctx context.Context, req *http.Request) (reflect.Value, error)
 	for i := 0; i < numin; i++ {
 		argT := rt.In(i)
-		if argT.Implements(ictxType) && i == 0 {
-			firstArgIsCtx = true
+		if i == 0 {
+			if !argT.Implements(ictxType) {
+				panic(fmt.Errorf("`function %s`'s first param type must be `context.Context`", funcname))
+			}
 			continue
 		}
 		isptr := false
@@ -205,14 +201,14 @@ func (endpoint *httpEndpoint) funcToHandler(funcname string, rv reflect.Value) I
 		endpoint.argTypes = append(endpoint.argTypes, argT)
 
 		if isptr {
-			argPeeks = append(argPeeks, func(ctx context.Context) (reflect.Value, error) {
+			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				return ptrv, bindHttp(ctx, ptrv.Interface())
+				return ptrv, bindHttp(ctx, req, argT, ptrv.Interface())
 			})
 		} else {
-			argPeeks = append(argPeeks, func(ctx context.Context) (reflect.Value, error) {
+			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				err := bindHttp(ctx, ptrv.Interface())
+				err := bindHttp(ctx, req, argT, ptrv.Interface())
 				if err != nil {
 					return reflect.Value{}, err
 				}
@@ -221,54 +217,49 @@ func (endpoint *httpEndpoint) funcToHandler(funcname string, rv reflect.Value) I
 		}
 	}
 
-	numout := rt.NumOut()
-	var mkresp func(outs []reflect.Value) (IHttpResponse, error)
-	switch numout {
+	var send func(outs []reflect.Value, respw http.ResponseWriter) error
+	switch rt.NumOut() {
 	case 0:
 		{
-			mkresp = func(_ []reflect.Value) (IHttpResponse, error) {
-				return codeResponse(http.StatusOK), nil
+			send = func(_ []reflect.Value, respw http.ResponseWriter) error {
+				respw.WriteHeader(http.StatusOK)
+				_, err := respw.Write(nil)
+				return err
 			}
 			break
 		}
 	case 1:
 		{
-			outType := rt.Out(0)
-			if outType == reflect.TypeOf((*int)(nil)).Elem() {
-				mkresp = func(outs []reflect.Value) (IHttpResponse, error) {
-					return codeResponse(outs[0].Int()), nil
+			outtype := rt.Out(0)
+			if outtype == reflect.TypeOf((*int)(nil)).Elem() {
+				send = func(outs []reflect.Value, respw http.ResponseWriter) error {
+					code := outs[0].Int()
+					respw.WriteHeader(int(code))
+					_, err := respw.Write(nil)
+					return err
 				}
 				break
 			}
-			mkresp = func(outs []reflect.Value) (IHttpResponse, error) {
-				return anyResponse{val: outs[0].Interface()}, nil
-			}
-		}
-	case 2:
-		{
-			firstOutType, secondOutType := rt.Out(0), rt.Out(1)
-			fmt.Println(firstOutType, secondOutType, "2121")
 		}
 	}
 
-	return HttpHandlerFunc(func(ctx context.Context) (IHttpResponse, error) {
+	return HttpHandlerFunc(func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
 		if endpoint.marshaler != nil {
 			ctx = context.WithValue(ctx, ctxKeyForHttpMarshaler, endpoint.marshaler)
 		}
 
 		args := make([]reflect.Value, 0, numin)
-		if firstArgIsCtx {
-			args = append(args, reflect.ValueOf(ctx))
-		}
+		args = append(args, reflect.ValueOf(ctx))
+
 		for _, peek := range argPeeks {
-			argv, err := peek(ctx)
+			argv, err := peek(ctx, req)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			args = append(args, argv)
 		}
 		outs := rv.Call(args)
-		return mkresp(outs)
+		return send(outs, respw)
 	})
 }
 
@@ -277,7 +268,7 @@ func mountEndpoints(mux *http.ServeMux, root string, globs ...string) {
 	defer allEndpointsLock.Unlock()
 
 	if allEndpointsDone {
-		panic("x")
+		panic("endpoint register is done")
 	}
 
 	for idx := range allEndpoints {
@@ -369,7 +360,7 @@ func RunHTTP(main func(), sites ...HttpSite) {
 	mainv := reflect.ValueOf(main)
 	mainfunc := runtime.FuncForPC(mainv.Pointer())
 	if mainfunc.Name() != "main.main" {
-		panic(fmt.Errorf("`%#p` is not the main function of main package", main))
+		panic(fmt.Errorf("`%s` is not the main function of main package", mainfunc.Name()))
 	}
 	maingo, _ := mainfunc.FileLine(0)
 	rootpkg := filepath.Dir(maingo)
