@@ -10,8 +10,8 @@ func main() {
 		fv.HttpSite{
 			Port: 8080, EndpointsGlob: "sitea/modules/**/*.go",
 		},
-		fv.HttpSite{Port: 8081, EndpointsGlob: "siteb/modules/**/*.go"},
+		fv.HttpSite{
+			Port: 8081, EndpointsGlob: "siteb/modules/**/*.go",
+		},
 	)
-
-	
 }
