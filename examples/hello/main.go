@@ -5,5 +5,13 @@ import (
 )
 
 func main() {
-	fv.RunHTTP(8080, main, []string{"./modules/**/*.go"})
+	fv.RunHTTP(
+		main,
+		fv.HttpSite{
+			Port: 8080, EndpointsGlob: "sitea/modules/**/*.go",
+		},
+		fv.HttpSite{Port: 8081, EndpointsGlob: "siteb/modules/**/*.go"},
+	)
+
+	
 }

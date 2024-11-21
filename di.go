@@ -3,8 +3,9 @@ package fv
 import (
 	"errors"
 	"fmt"
-	"github.com/zzztttkkk/faceless.void/internal"
 	"reflect"
+
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type difnc struct {
@@ -67,7 +68,7 @@ func (g TokenValueGetter[T]) Get(token string) T {
 }
 
 //goland:noinspection GoExportedFuncWithUnexportedType
-func NewDIContainer() *_DIContainer {
+func NewContainer() *_DIContainer {
 	return &_DIContainer{
 		valpool:      make(map[reflect.Type]reflect.Value),
 		tokenvalpool: make(map[reflect.Type]map[string]reflect.Value),

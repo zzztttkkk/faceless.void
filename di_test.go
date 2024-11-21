@@ -24,7 +24,7 @@ type G struct {
 }
 
 func TestDi(t *testing.T) {
-	dic := fv.NewDIContainer()
+	dic := fv.NewContainer()
 
 	dic.Prepare(func() (*C, F, []fv.TokenValue[*G]) {
 		return &C{}, F(12), []fv.TokenValue[*G]{

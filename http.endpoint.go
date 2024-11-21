@@ -334,15 +334,8 @@ func readPkgName(fp string) string {
 	}
 }
 
-func RunHTTP(port int, main func(), globs []string) {
-	mainv := reflect.ValueOf(main)
-	mainfunc := runtime.FuncForPC(mainv.Pointer())
-	if mainfunc.Name() != "main.main" {
-		panic(fmt.Errorf("`%#v` is not the main function of main package", main))
-	}
-	maingo, _ := mainfunc.FileLine(0)
-	rootpkg := filepath.Dir(maingo)
-	fmt.Println(rootpkg)
+func loadEndpoints(root string, globs []string) {
+	fmt.Println(root)
 
 	pkgs := map[string]struct{}{}
 
@@ -362,4 +355,27 @@ func RunHTTP(port int, main func(), globs []string) {
 	}
 
 	fmt.Println(pkgs)
+}
+
+type HttpSite struct {
+	Port          int
+	EndpointsGlob string
+	HostName      string
+	TLSCert       string
+	TLSKey        string
+}
+
+func RunHTTP(main func(), sites ...HttpSite) {
+	mainv := reflect.ValueOf(main)
+	mainfunc := runtime.FuncForPC(mainv.Pointer())
+	if mainfunc.Name() != "main.main" {
+		panic(fmt.Errorf("`%#p` is not the main function of main package", main))
+	}
+	maingo, _ := mainfunc.FileLine(0)
+	rootpkg := filepath.Dir(maingo)
+	fmt.Println(rootpkg)
+
+	allEndpointsLock.Lock()
+	allEndpointsDone = true
+	allEndpointsLock.Unlock()
 }

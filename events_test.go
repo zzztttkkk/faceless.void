@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	fv "github.com/zzztttkkk/faceless.void"
 )
@@ -22,16 +23,15 @@ func (o *OnUserCreated) UpdateByContext(ctx context.Context) {
 var _ fv.IEvent = (*OnUserCreated)(nil)
 
 func TestEventBus(T *testing.T) {
-	ebus := fv.NewEventBus(nil)
-
 	fnc := func(at int64, evt fv.IEvent) {
 		eptr := evt.(*OnUserCreated)
 		fmt.Println(at, eptr)
 	}
 
-	ebus.AddListener(OnUserCreatedType, fnc)
-	//ebus.RemoveListener(OnUserCreatedType, fnc)
+	fv.On(OnUserCreatedType, fnc)
 
-	handled := ebus.Emit(context.Background(), OnUserCreatedType, &OnUserCreated{Id: 1, Email: "test@test.com"}, &fv.EventEmitOpts{Concurrency: true})
+	handled := fv.Emit(context.Background(), OnUserCreatedType, &OnUserCreated{Id: 1, Email: "test@test.com"}, nil)
 	fmt.Println(handled)
+
+	time.Sleep(time.Millisecond * 10)
 }

@@ -75,7 +75,7 @@ func (ebus *EventBus) RemoveAllListener(evttype reflect.Type) *EventBus {
 }
 
 type EventEmitOpts struct {
-	Concurrency bool
+	Sync bool
 }
 
 var (
@@ -96,7 +96,7 @@ func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts
 	}
 	ebus.lock.RUnlock()
 
-	if !opts.Concurrency {
+	if opts.Sync {
 		for _, fnc := range handlers {
 			fnc.wrapped(now, evt)
 		}
@@ -112,4 +112,24 @@ func (ebus *EventBus) emit(evttype reflect.Type, evt IEvent, opts *EventEmitOpts
 func (ebus *EventBus) Emit(ctx context.Context, evttype reflect.Type, evt IEvent, opts *EventEmitOpts) bool {
 	evt.UpdateByContext(ctx)
 	return ebus.emit(evttype, evt, opts)
+}
+
+var (
+	globbus = NewEventBus(nil)
+)
+
+func Emit(ctx context.Context, evttype reflect.Type, evt IEvent, opts *EventEmitOpts) bool {
+	return globbus.Emit(ctx, evttype, evt, opts)
+}
+
+func On(evttype reflect.Type, fnc EventListener) {
+	globbus.AddListener(evttype, fnc)
+}
+
+func RemoveAllListener(evttype reflect.Type) {
+	globbus.RemoveAllListener(evttype)
+}
+
+func RemoveListener(evttype reflect.Type, fnc EventListener) {
+	globbus.RemoveListener(evttype, fnc)
 }
