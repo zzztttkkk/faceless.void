@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	fv "github.com/zzztttkkk/faceless.void"
+	"github.com/zzztttkkk/faceless.void/vld"
 )
 
 type RegisterParams struct {
@@ -16,17 +17,17 @@ type RegisterParams struct {
 }
 
 var (
-	RegisterParamsType = reflect.TypeOf((*RegisterParams)(nil)).Elem()
+	typeofRegisterParams = reflect.TypeOf((*RegisterParams)(nil)).Elem()
 )
 
 func init() {
-	fv.RegisterTypes(RegisterParamsType)
+	fv.RegisterTypes(typeofRegisterParams)
 }
 
 // Binding implements fv.IBinding.
 func (params *RegisterParams) Binding(ctx context.Context, req *http.Request) error {
-	bnd := fv.BindingGetter(ctx).Instance(RegisterParamsType, unsafe.Pointer(params))
-	bnd.String(&params.Password, fv.BindingSrcForm, nil)
+	bnd := fv.BindingGetter(ctx).Instance(typeofRegisterParams, unsafe.Pointer(params))
+	bnd.String(&params.Password, fv.BindingSrcForm, vld.String().MinLen(1).MaxLen(10).Finish())
 	return nil
 }
 
