@@ -88,8 +88,12 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 		rw.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
+	var bh _Getter
 	ctx := context.WithValue(req.Context(), ctxKeyForHttpRequest, req)
+	ctx = bh.init(ctx, req)
 	err := endpoint.handler.ServeHTTP(ctx, req, rw)
+
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		rw.Write(nil)
@@ -190,25 +194,31 @@ func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) IHttp
 			}
 			continue
 		}
+
+		if !argT.Implements(iBindingType) {
+			panic(fmt.Errorf("`function %s`'s param type is not a fv.IBinding, at %d", funcname, i))
+		}
+
 		isptr := false
 		if argT.Kind() == reflect.Pointer {
 			argT = argT.Elem()
 			isptr = true
-		}
-		if argT.Kind() != reflect.Struct {
-			panic(fmt.Errorf("`function %s`'s param type is not a struct or a struct pointer, at %d", funcname, i))
 		}
 		endpoint.argTypes = append(endpoint.argTypes, argT)
 
 		if isptr {
 			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				return ptrv, bindHttp(ctx, req, argT, ptrv.Interface())
+				err := ptrv.Interface().(IBinding).Binding(ctx, req)
+				if err != nil {
+					return reflect.Value{}, err
+				}
+				return ptrv, nil
 			})
 		} else {
 			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				err := bindHttp(ctx, req, argT, ptrv.Interface())
+				err := ptrv.Interface().(IBinding).Binding(ctx, req)
 				if err != nil {
 					return reflect.Value{}, err
 				}

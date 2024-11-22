@@ -1,6 +1,8 @@
 package main
 
 import (
+	_ "hello/sitea/modules/account"
+
 	fv "github.com/zzztttkkk/faceless.void"
 )
 
