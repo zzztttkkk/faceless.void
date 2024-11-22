@@ -16,55 +16,62 @@ import (
 	"sync"
 )
 
-type endpointOption struct {
-	key string
+type endpointOptionKey int
+
+type endpointOptionPair struct {
+	key endpointOptionKey
 	val any
 }
 
-var (
-	EndpointOptions endpointOption
+const (
+	endpointOptionKeyForFilename = endpointOptionKey(iota)
+	endpointOptionKeyForMethods
+	endpointOptionKeyForPattern
+	endpointOptionKeyForDescription
+	endpointOptionKeyForInput
+	endpointOptionKeyForOutput
 )
 
-func (*endpointOption) Filename(filename string) endpointOption {
-	return endpointOption{
-		key: "filename",
-		val: filename,
-	}
+type endpointOptions struct {
+	pairs []endpointOptionPair
 }
 
-func (*endpointOption) Methods(methods ...string) endpointOption {
-	return endpointOption{
-		key: "methods",
-		val: methods,
-	}
+func Endpoint() *endpointOptions {
+	return &endpointOptions{}
 }
 
-func (*endpointOption) Pattern(pattern string) endpointOption {
-	return endpointOption{
-		key: "pattern",
-		val: pattern,
-	}
+func (opts *endpointOptions) Filename(filename string) *endpointOptions {
+	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForFilename, val: filename})
+	return opts
 }
 
-func (*endpointOption) Description(description string) endpointOption {
-	return endpointOption{
-		key: "description",
-		val: description,
-	}
+func (opts *endpointOptions) Methods(methods ...string) *endpointOptions {
+	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForMethods, val: methods})
+	return opts
 }
 
-func (*endpointOption) Input(types ...reflect.Type) endpointOption {
-	return endpointOption{
-		key: "input",
-		val: types,
-	}
+func (opts *endpointOptions) Pattern(pattern string) *endpointOptions {
+	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForPattern, val: pattern})
+	return opts
 }
 
-func (*endpointOption) Output(types ...reflect.Type) endpointOption {
-	return endpointOption{
-		key: "output",
-		val: types,
-	}
+func (opts *endpointOptions) Description(description string) *endpointOptions {
+	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForDescription, val: description})
+	return opts
+}
+
+func (opts *endpointOptions) Input(types ...reflect.Type) *endpointOptions {
+	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForInput, val: types})
+	return opts
+}
+
+func (opts *endpointOptions) Output(types ...reflect.Type) *endpointOptions {
+	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForOutput, val: types})
+	return opts
+}
+
+func (opts *endpointOptions) Register(fnc any) {
+	RegisterHttpEndpoint(fnc, opts)
 }
 
 type IHttpMarshaler interface {
@@ -108,7 +115,7 @@ var (
 	funcAutoNameRegexp = regexp.MustCompile(`^func(\d+)$`)
 )
 
-func RegisterHttpEndpoint(fnc any, opts ...endpointOption) {
+func RegisterHttpEndpoint(fnc any, opts *endpointOptions) {
 	rv := reflect.ValueOf(fnc)
 	if rv.Kind() != reflect.Func {
 		panic(fmt.Errorf("`%#v` is not a function", fnc))
@@ -119,29 +126,29 @@ func RegisterHttpEndpoint(fnc any, opts ...endpointOption) {
 	endpoint := httpEndpoint{filename: filename}
 	endpoint.handler = endpoint.mkhandler(funcv.Name(), rv)
 
-	for _, opt := range opts {
+	for _, opt := range opts.pairs {
 		switch opt.key {
-		case "filename":
+		case endpointOptionKeyForFilename:
 			{
 				endpoint.filename = opt.val.(string)
 				break
 			}
-		case "methods":
+		case endpointOptionKeyForMethods:
 			{
 				endpoint.methods = opt.val.([]string)
 				break
 			}
-		case "pattern":
+		case endpointOptionKeyForPattern:
 			{
 				endpoint.pattern = opt.val.(string)
 				break
 			}
-		case "input":
+		case endpointOptionKeyForInput:
 			{
 				endpoint.argTypes = opt.val.([]reflect.Type)
 				break
 			}
-		case "output":
+		case endpointOptionKeyForOutput:
 			{
 				endpoint.outTypes = opt.val.([]reflect.Type)
 				break

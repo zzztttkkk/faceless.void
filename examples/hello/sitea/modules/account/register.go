@@ -17,16 +17,16 @@ type RegisterParams struct {
 }
 
 var (
-	typeofRegisterParams = reflect.TypeOf((*RegisterParams)(nil)).Elem()
+	typeOfRegisterParams = reflect.TypeOf(RegisterParams{})
 )
 
 func init() {
-	fv.RegisterTypes(typeofRegisterParams)
+	fv.RegisterTypes(typeOfRegisterParams)
 }
 
 // Binding implements fv.IBinding.
 func (params *RegisterParams) Binding(ctx context.Context, req *http.Request) error {
-	bnd := fv.BindingGetter(ctx).Instance(typeofRegisterParams, unsafe.Pointer(params))
+	bnd := fv.BindingGetter(ctx).Instance(typeOfRegisterParams, unsafe.Pointer(params))
 	bnd.String(&params.Password, fv.BindingSrcForm, vld.String().MinLen(1).MaxLen(10).Finish())
 	return nil
 }
@@ -43,8 +43,5 @@ func Register(ctx context.Context, params *RegisterParams) (*RegisterResult, err
 }
 
 func init() {
-	fv.RegisterHttpEndpoint(
-		Register,
-		fv.EndpointOptions.Pattern("/register"),
-	)
+	fv.Endpoint().Register(Register)
 }
