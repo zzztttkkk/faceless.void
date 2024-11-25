@@ -34,7 +34,7 @@ func (opts *_TimeVldOptions) Custom(fnc func(*time.Time) error) *_TimeVldOptions
 	return opts
 }
 
-func (opts *_TimeVldOptions) Finish() func(time.Time) error {
+func (opts *_TimeVldOptions) Func() func(time.Time) error {
 	var fncs []func(time.Time) error
 
 	for _, pair := range opts.pairs {

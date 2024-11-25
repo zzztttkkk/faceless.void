@@ -11,7 +11,7 @@ import (
 )
 
 type IBinding interface {
-	Binding(ctx context.Context, req *http.Request) error
+	Binding(ctx context.Context) error
 }
 
 var (
@@ -97,36 +97,50 @@ func (getter *_Getter) getvalues(where BindingSrcKind, key string) ([]string, bo
 	return vs, ok
 }
 
-func (getter *_Getter) Int(where BindingSrcKind, key string) (int64, bool) {
+func (getter *_Getter) getvaluesbynames(where BindingSrcKind, key string, alias ...string) ([]string, bool) {
 	vs, ok := getter.getvalues(where, key)
+	if ok {
+		return vs, true
+	}
+	for _, name := range alias {
+		vs, ok = getter.getvalues(where, name)
+		if ok {
+			return vs, true
+		}
+	}
+	return nil, false
+}
+
+func (getter *_Getter) Int(where BindingSrcKind, base int, key string, alias ...string) (int64, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
 		return 0, false
 	}
-	iv, err := strconv.ParseInt(vs[0], 10, 64)
+	iv, err := strconv.ParseInt(vs[0], base, 64)
 	if err != nil {
 		return 0, false
 	}
 	return iv, true
 }
 
-func (getter *_Getter) MustInt(where BindingSrcKind, key string, validator func(int64) error) int64 {
-	var err error
-	iv, ok := getter.Int(where, key)
+func (getter *_Getter) Ints(where BindingSrcKind, base int, key string, alias ...string) ([]int64, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok {
-		err = fmt.Errorf("missing required params: %v, %s", where, key)
-	} else {
-		if validator != nil {
-			err = validator(iv)
+		return nil, false
+	}
+	var ints = make([]int64, 0, len(vs))
+	for _, v := range vs {
+		iv, err := strconv.ParseInt(v, base, 64)
+		if err != nil {
+			return nil, false
 		}
+		ints = append(ints, iv)
 	}
-	if err != nil {
-		panic(err)
-	}
-	return iv
+	return ints, true
 }
 
-func (getter *_Getter) Uint(where BindingSrcKind, key string) (uint64, bool) {
-	vs, ok := getter.getvalues(where, key)
+func (getter *_Getter) Uint(where BindingSrcKind, key string, alias ...string) (uint64, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
 		return 0, false
 	}
@@ -137,8 +151,8 @@ func (getter *_Getter) Uint(where BindingSrcKind, key string) (uint64, bool) {
 	return iv, true
 }
 
-func (getter *_Getter) Bool(where BindingSrcKind, key string) (bool, bool) {
-	vs, ok := getter.getvalues(where, key)
+func (getter *_Getter) Bool(where BindingSrcKind, key string, alias ...string) (bool, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
 		return false, false
 	}
@@ -149,8 +163,8 @@ func (getter *_Getter) Bool(where BindingSrcKind, key string) (bool, bool) {
 	return iv, true
 }
 
-func (getter *_Getter) Time(where BindingSrcKind, key string, layout string) (time.Time, bool) {
-	vs, ok := getter.getvalues(where, key)
+func (getter *_Getter) Time(where BindingSrcKind, layout string, key string, alias ...string) (time.Time, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
 		return time.Time{}, false
 	}
@@ -161,8 +175,8 @@ func (getter *_Getter) Time(where BindingSrcKind, key string, layout string) (ti
 	return tv, true
 }
 
-func (getter *_Getter) Duration(where BindingSrcKind, key string) (time.Duration, bool) {
-	vs, ok := getter.getvalues(where, key)
+func (getter *_Getter) Duration(where BindingSrcKind, key string, alias ...string) (time.Duration, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
 		return 0, false
 	}
@@ -173,59 +187,44 @@ func (getter *_Getter) Duration(where BindingSrcKind, key string) (time.Duration
 	return tv, true
 }
 
-func (getter *_Getter) String(where BindingSrcKind, key string) (string, bool) {
-	vs, ok := getter.getvalues(where, key)
+func (getter *_Getter) String(where BindingSrcKind, key string, alias ...string) (string, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
 		return "", false
 	}
 	return vs[0], true
 }
 
-func (getter *_Getter) MustString(where BindingSrcKind, key string, validator func(string) error) string {
-	var err error
-	sv, ok := getter.String(where, key)
-	if !ok {
-		err = fmt.Errorf("")
-	} else {
-		if validator != nil {
-			err = validator(sv)
+type _BindingInstance struct {
+	ptr    int64
+	info   *_TypeInfo
+	fields [](func(context.Context) error)
+}
+
+func (ins *_BindingInstance) Error(ctx context.Context) error {
+	for _, fnc := range ins.fields {
+		err := fnc(ctx)
+		if err != nil {
+			return err
 		}
 	}
-	if err != nil {
-		panic(err)
-	}
-	return sv
-}
-
-func (getter *_Getter) Any(where BindingSrcKind, key string, parse func(string, ...any) (any, error), args ...any) (any, bool) {
-	vs, ok := getter.getvalues(where, key)
-	if !ok || len(vs) < 1 {
-		return nil, false
-	}
-	av, err := parse(vs[0], args...)
-	if err != nil {
-		return nil, false
-	}
-	return av, true
-}
-
-func (getter *_Getter) Unmarshal(dest any) error {
 	return nil
 }
 
-type _InstanceGetter struct {
-	getter *_Getter
-	names  _FieldNames
+func (ins *_BindingInstance) nameof(ptr unsafe.Pointer) string {
+	offset := int64(uintptr(ptr)) - ins.ptr
+	for idx := range ins.info.offsets {
+		ele := &ins.info.offsets[idx]
+		if ele.offset == offset {
+			return ele.field.Name
+		}
+	}
+	panic(fmt.Errorf("can not find field info"))
 }
 
-func (obj *_InstanceGetter) String(dest *string, where BindingSrcKind, validator func(string) error) {
-	key := obj.names.Name(unsafe.Pointer(dest))
-	*dest = obj.getter.MustString(where, key, validator)
-}
-
-func (getter *_Getter) Instance(t reflect.Type, ptr unsafe.Pointer) *_InstanceGetter {
-	return &_InstanceGetter{
-		getter: getter,
-		names:  NewFieldNames(t, ptr, ""),
+func Binding(ptr unsafe.Pointer, vtype reflect.Type) _BindingInstance {
+	return _BindingInstance{
+		ptr:  int64(uintptr(ptr)),
+		info: typeinfos[vtype],
 	}
 }

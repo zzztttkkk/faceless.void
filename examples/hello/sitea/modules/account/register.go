@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"reflect"
 	"unsafe"
@@ -25,10 +26,12 @@ func init() {
 }
 
 // Binding implements fv.IBinding.
-func (params *RegisterParams) Binding(ctx context.Context, req *http.Request) error {
-	bnd := fv.BindingGetter(ctx).Instance(typeOfRegisterParams, unsafe.Pointer(params))
-	bnd.String(&params.Password, fv.BindingSrcForm, vld.String().MinLen(1).MaxLen(10).Finish())
-	return nil
+func (params *RegisterParams) Binding(ctx context.Context) error {
+	bnd := fv.Binding(unsafe.Pointer(params), typeOfRegisterParams)
+	bnd.String(&params.Email).Validate(vld.Strings.Email().Func())
+	bnd.String(&params.Name)
+	bnd.String(&params.Password)
+	return bnd.Error(ctx)
 }
 
 var _ fv.IBinding = (*RegisterParams)(nil)
@@ -43,5 +46,20 @@ func Register(ctx context.Context, params *RegisterParams) (*RegisterResult, err
 }
 
 func init() {
-	fv.Endpoint().Register(Register)
+	fv.Endpoint().Func(func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
+		var params RegisterParams
+		err := params.Binding(ctx)
+		if err != nil {
+			return err
+		}
+
+		result, err := Register(ctx, &params)
+		if err != nil {
+			return err
+		}
+
+		enc := json.NewEncoder(respw)
+		enc.Encode(result)
+		return nil
+	})
 }

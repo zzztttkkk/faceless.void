@@ -22,5 +22,5 @@ func Post(ctx context.Context, params *PostParams) (*PostParams, error) {
 }
 
 func init() {
-	fv.RegisterHttpEndpoint(Post, nil)
+	fv.Endpoint().AnyFunc(Post)
 }

@@ -30,7 +30,7 @@ func (opts *_IntVldOptions[T]) MaxValue(v T) *_IntVldOptions[T] {
 	return opts
 }
 
-func (opts *_IntVldOptions[T]) Finish() func(T) error {
+func (opts *_IntVldOptions[T]) Func() func(T) error {
 	var fncs []func(T) error
 
 	for _, pair := range opts.pairs {

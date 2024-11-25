@@ -30,6 +30,8 @@ const (
 	endpointOptionKeyForDescription
 	endpointOptionKeyForInput
 	endpointOptionKeyForOutput
+	endpointOptionKeyForHandleFunc
+	endpointOptionKeyForAnyFunc
 )
 
 type endpointOptions struct {
@@ -70,8 +72,12 @@ func (opts *endpointOptions) Output(types ...reflect.Type) *endpointOptions {
 	return opts
 }
 
-func (opts *endpointOptions) Register(fnc any) {
-	RegisterHttpEndpoint(fnc, opts)
+func (opts *endpointOptions) Func(fnc HttpHandlerFunc) {
+	opts.pairs = append(opts.pairs, endpointOptionPair{endpointOptionKeyForHandleFunc, fnc})
+}
+
+func (opts *endpointOptions) AnyFunc(fnc any) {
+	opts.pairs = append(opts.pairs, endpointOptionPair{endpointOptionKeyForAnyFunc, fnc})
 }
 
 type IHttpMarshaler interface {
@@ -91,6 +97,10 @@ type httpEndpoint struct {
 
 // ServeHTTP implements http.Handler.
 func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodOptions {
+		return
+	}
+
 	if len(endpoint.methods) > 0 && !slices.Contains(endpoint.methods, req.Method) {
 		rw.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -109,22 +119,18 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 }
 
 var (
-	allEndpointsLock   sync.Mutex
-	allEndpointsDone   bool
-	allEndpoints       = make([]httpEndpoint, 0)
-	funcAutoNameRegexp = regexp.MustCompile(`^func(\d+)$`)
+	allEndpointsLock        sync.Mutex
+	allEndpointsDone        bool
+	allEndpoints            = make([]httpEndpoint, 0)
+	anonymousFuncNameRegexp = regexp.MustCompile(`^func(\d+)$`)
 )
 
-func RegisterHttpEndpoint(fnc any, opts *endpointOptions) {
-	rv := reflect.ValueOf(fnc)
-	if rv.Kind() != reflect.Func {
-		panic(fmt.Errorf("`%#v` is not a function", fnc))
-	}
-	funcv := runtime.FuncForPC(rv.Pointer())
-	filename, _ := funcv.FileLine(0)
+func RegisterHttpEndpoint(opts *endpointOptions) {
 
-	endpoint := httpEndpoint{filename: filename}
-	endpoint.handler = endpoint.mkhandler(funcv.Name(), rv)
+	endpoint := httpEndpoint{}
+
+	var fnc HttpHandlerFunc
+	var anyfnc any
 
 	for _, opt := range opts.pairs {
 		switch opt.key {
@@ -153,12 +159,42 @@ func RegisterHttpEndpoint(fnc any, opts *endpointOptions) {
 				endpoint.outTypes = opt.val.([]reflect.Type)
 				break
 			}
+		case endpointOptionKeyForHandleFunc:
+			{
+				fnc = opt.val.(HttpHandlerFunc)
+				break
+			}
+		case endpointOptionKeyForAnyFunc:
+			{
+				anyfnc = opt.val
+				break
+			}
 		}
 	}
+
+	var funcv *runtime.Func
+	var filename string
+	if anyfnc != nil {
+		rv := reflect.ValueOf(anyfnc)
+		if rv.Kind() != reflect.Func {
+			panic(fmt.Errorf("`%#v` is not a function", fnc))
+		}
+		funcv := runtime.FuncForPC(rv.Pointer())
+		filename, _ = funcv.FileLine(0)
+		fnc = endpoint.mkhandler(filename, rv)
+	} else {
+		funcv = runtime.FuncForPC(reflect.ValueOf(fnc).Pointer())
+		filename, _ = funcv.FileLine(0)
+	}
+	endpoint.handler = fnc
+	if endpoint.filename == "" {
+		endpoint.filename = filename
+	}
+
 	if endpoint.pattern == "" {
 		parts := strings.Split(funcv.Name(), ".")
 		name := parts[len(parts)-1]
-		if funcAutoNameRegexp.MatchString(name) {
+		if anonymousFuncNameRegexp.MatchString(name) {
 			panic(fmt.Errorf("`%s` need a pattern option", funcv.Name()))
 		}
 	}
@@ -179,7 +215,7 @@ type IHttpError interface {
 	BodyMessage(ctx context.Context) []byte
 }
 
-func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) IHttpHandler {
+func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) HttpHandlerFunc {
 	hf, ok := rv.Interface().(HttpHandlerFunc)
 	if ok {
 		return hf
@@ -216,7 +252,7 @@ func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) IHttp
 		if isptr {
 			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				err := ptrv.Interface().(IBinding).Binding(ctx, req)
+				err := ptrv.Interface().(IBinding).Binding(ctx)
 				if err != nil {
 					return reflect.Value{}, err
 				}
@@ -225,7 +261,7 @@ func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) IHttp
 		} else {
 			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				err := ptrv.Interface().(IBinding).Binding(ctx, req)
+				err := ptrv.Interface().(IBinding).Binding(ctx)
 				if err != nil {
 					return reflect.Value{}, err
 				}

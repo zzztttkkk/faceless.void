@@ -59,7 +59,7 @@ func (opts *_StringVldOptions) Custom(fnc func(string) error) *_StringVldOptions
 	return opts
 }
 
-func (opts *_StringVldOptions) Finish() func(string) error {
+func (opts *_StringVldOptions) Func() func(string) error {
 	var fncs []func(string) error
 
 	for _, pair := range opts.pairs {
