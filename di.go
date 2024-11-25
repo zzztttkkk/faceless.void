@@ -49,7 +49,7 @@ type __fv_private_token_value_getter__ interface {
 	__fv_private_token_value_getter_get_type__() reflect.Type
 }
 
-type TokenValueGetter[T any] struct {
+type Token[T any] struct {
 	typehint *T
 	Fnc      func(string, reflect.Type) any
 }
@@ -59,11 +59,11 @@ var (
 )
 
 //goland:noinspection ALL
-func (g TokenValueGetter[T]) __fv_private_token_value_getter_get_type__() reflect.Type {
+func (g Token[T]) __fv_private_token_value_getter_get_type__() reflect.Type {
 	return reflect.TypeOf(g.typehint).Elem()
 }
 
-func (g TokenValueGetter[T]) Get(token string) T {
+func (g Token[T]) Get(token string) T {
 	return g.Fnc(token, g.__fv_private_token_value_getter_get_type__()).(T)
 }
 

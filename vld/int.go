@@ -33,11 +33,17 @@ func (opts *_IntVldOptions[T]) MaxValue(v T) *_IntVldOptions[T] {
 func (opts *_IntVldOptions[T]) Func() func(T) error {
 	var fncs []func(T) error
 
+	var min, max T
+	var minok, maxok bool
 	for _, pair := range opts.pairs {
 		switch pair.key {
 		case intVldOptionsKeyForMinV:
 			{
 				minv := pair.val.(T)
+
+				min = minv
+				minok = true
+
 				fncs = append(fncs, func(t T) error {
 					if t < minv {
 						return fmt.Errorf("< minv(%d)", minv)
@@ -49,6 +55,10 @@ func (opts *_IntVldOptions[T]) Func() func(T) error {
 		case intVldOptionsKeyForMaxV:
 			{
 				maxv := pair.val.(T)
+
+				max = maxv
+				maxok = true
+
 				fncs = append(fncs, func(t T) error {
 					if t > maxv {
 						return fmt.Errorf("> maxv(%d)", maxv)
@@ -64,6 +74,10 @@ func (opts *_IntVldOptions[T]) Func() func(T) error {
 				}
 			}
 		}
+	}
+
+	if minok && maxok && min > max {
+		panic("min > max")
 	}
 
 	if len(fncs) < 1 {
