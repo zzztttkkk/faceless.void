@@ -27,7 +27,7 @@ func init() {
 
 // Binding implements fv.IBinding.
 func (params *RegisterParams) Binding(ctx context.Context) error {
-	bnd := fv.Binding(unsafe.Pointer(params), typeOfRegisterParams)
+	bnd := fv.Binding(typeOfRegisterParams, unsafe.Pointer(params))
 	bnd.String(&params.Email).Validate(vld.Strings.Email().Func())
 	bnd.String(&params.Name)
 	bnd.String(&params.Password)

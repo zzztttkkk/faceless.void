@@ -222,7 +222,7 @@ func (ins *_BindingInstance) nameof(ptr unsafe.Pointer) string {
 	panic(fmt.Errorf("can not find field info"))
 }
 
-func Binding(ptr unsafe.Pointer, vtype reflect.Type) _BindingInstance {
+func Binding(vtype reflect.Type, ptr unsafe.Pointer) _BindingInstance {
 	return _BindingInstance{
 		ptr:  int64(uintptr(ptr)),
 		info: typeinfos[vtype],

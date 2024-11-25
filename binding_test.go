@@ -28,11 +28,10 @@ func TestBinding(t *testing.T) {
 	req.URL.RawQuery = "A=aaaa&B=123"
 
 	ctx := context.WithValue(req.Context(), ctxKeyForHttpRequest, req)
-	ctx = context.WithValue(ctx, ctxKeyForBindingGetter, &getter)
-	getter.init(ctx, req)
+	ctx = getter.init(ctx, req)
 
 	var abv ABParams
-	var bnd = Binding(unsafe.Pointer(&abv), typeofABParams)
+	var bnd = Binding(typeofABParams, unsafe.Pointer(&abv))
 	bnd.String(&abv.A)
 	bnd.Int16(&abv.B)
 
