@@ -11,6 +11,7 @@ const (
 	ctxKeyForHttpMarshaler = ctxKeyType(iota)
 	ctxKeyForHttpRequest
 	ctxKeyForBindingGetter
+	ctxKeyForLanguageKind
 )
 
 func HttpRequest(ctx context.Context) *http.Request {
@@ -27,4 +28,8 @@ func BindingGetter(ctx context.Context) *_Getter {
 		return av.(*_Getter)
 	}
 	panic("empty BindingHelper")
+}
+
+func WithLanguage(ctx context.Context, lang string) context.Context {
+	return context.WithValue(ctx, ctxKeyForLanguageKind, lang)
 }

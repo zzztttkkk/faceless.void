@@ -266,8 +266,4 @@ func (dic *_DIContainer) Run() {
 			panic(dic.errorf("can not resolve dependencies"))
 		}
 	}
-
-	clear(dic.fncs)
-	clear(dic.valpool)
-	clear(dic.tokenvalpool)
 }
