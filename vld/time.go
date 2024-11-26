@@ -1,6 +1,7 @@
 package vld
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -34,15 +35,15 @@ func (opts *_TimeVldOptions) Custom(fnc func(*time.Time) error) *_TimeVldOptions
 	return opts
 }
 
-func (opts *_TimeVldOptions) Func() func(time.Time) error {
-	var fncs []func(time.Time) error
+func (opts *_TimeVldOptions) Func() func(context.Context, time.Time) error {
+	var fncs []func(context.Context, time.Time) error
 
 	for _, pair := range opts.pairs {
 		switch pair.key {
 		case timeVldOptionsKeyForBegin:
 			{
 				begin := pair.val.(time.Time)
-				fncs = append(fncs, func(t time.Time) error {
+				fncs = append(fncs, func(ctx context.Context, t time.Time) error {
 					if t.Sub(begin) < 0 {
 						return fmt.Errorf("")
 					}
@@ -53,7 +54,7 @@ func (opts *_TimeVldOptions) Func() func(time.Time) error {
 		case timeVldOptionsKeyForEnd:
 			{
 				end := pair.val.(time.Time)
-				fncs = append(fncs, func(t time.Time) error {
+				fncs = append(fncs, func(ctx context.Context, t time.Time) error {
 					if t.Sub(end) > 0 {
 						return fmt.Errorf("")
 					}
@@ -63,7 +64,14 @@ func (opts *_TimeVldOptions) Func() func(time.Time) error {
 			}
 		case timeVldOptionsKeyForCustom:
 			{
-				fncs = append(fncs, pair.val.(func(time.Time) error))
+				fnc := pair.val.(func(context.Context, time.Time) error)
+				fncs = append(fncs, func(ctx context.Context, t time.Time) error {
+					err := fnc(ctx, t)
+					if err != nil {
+						return newerror(ctx, ErrorKindCustomFunc, msgForCustomFunc, err)
+					}
+					return nil
+				})
 				break
 			}
 		}
@@ -71,9 +79,9 @@ func (opts *_TimeVldOptions) Func() func(time.Time) error {
 	if len(fncs) < 1 {
 		return nil
 	}
-	return func(t time.Time) error {
+	return func(ctx context.Context, t time.Time) error {
 		for _, fnc := range fncs {
-			err := fnc(t)
+			err := fnc(ctx, t)
 			if err != nil {
 				return err
 			}

@@ -3,33 +3,26 @@ package fv
 import (
 	"context"
 	"net/http"
-)
 
-type ctxKeyType int
-
-const (
-	ctxKeyForHttpMarshaler = ctxKeyType(iota)
-	ctxKeyForHttpRequest
-	ctxKeyForBindingGetter
-	ctxKeyForLanguageKind
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 func HttpRequest(ctx context.Context) *http.Request {
-	av := ctx.Value(ctxKeyForHttpRequest)
+	av := ctx.Value(internal.CtxKeyForHttpRequest)
 	if av != nil {
 		return av.(*http.Request)
 	}
 	panic("empty http.Request")
 }
 
-func BindingGetter(ctx context.Context) *_Getter {
-	av := ctx.Value(ctxKeyForBindingGetter)
+func _BindingGetter(ctx context.Context) *_Getter {
+	av := ctx.Value(internal.CtxKeyForBindingGetter)
 	if av != nil {
 		return av.(*_Getter)
 	}
-	panic("empty BindingHelper")
+	panic("empty BindingGetter")
 }
 
 func WithLanguage(ctx context.Context, lang string) context.Context {
-	return context.WithValue(ctx, ctxKeyForLanguageKind, lang)
+	return context.WithValue(ctx, internal.CtxKeyForLanguageKind, lang)
 }

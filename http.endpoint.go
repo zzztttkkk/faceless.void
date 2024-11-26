@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type endpointOptionKey int
@@ -107,7 +109,7 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 	}
 
 	var bh _Getter
-	ctx := context.WithValue(req.Context(), ctxKeyForHttpRequest, req)
+	ctx := context.WithValue(req.Context(), internal.CtxKeyForHttpRequest, req)
 	ctx = bh.init(ctx, req)
 	err := endpoint.handler.ServeHTTP(ctx, req, rw)
 
@@ -209,12 +211,6 @@ func RegisterHttpEndpoint(opts *endpointOptions) {
 	allEndpoints = append(allEndpoints, endpoint)
 }
 
-type IHttpError interface {
-	error
-	StatusCode() int
-	BodyMessage(ctx context.Context) []byte
-}
-
 func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) HttpHandlerFunc {
 	hf, ok := rv.Interface().(HttpHandlerFunc)
 	if ok {
@@ -298,7 +294,6 @@ func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) HttpH
 
 	return HttpHandlerFunc(func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
 		if endpoint.marshaler != nil {
-			ctx = context.WithValue(ctx, ctxKeyForHttpMarshaler, endpoint.marshaler)
 		}
 
 		args := make([]reflect.Value, 0, numin)

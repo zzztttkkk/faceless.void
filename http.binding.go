@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 	"unsafe"
+
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type IBinding interface {
@@ -25,7 +27,7 @@ type _Getter struct {
 }
 
 func (getter *_Getter) init(ctx context.Context, req *http.Request) context.Context {
-	ctx = context.WithValue(ctx, ctxKeyForBindingGetter, getter)
+	ctx = context.WithValue(ctx, internal.CtxKeyForBindingGetter, getter)
 	getter.ctx = ctx
 	getter.req = req
 	return ctx
@@ -151,6 +153,22 @@ func (getter *_Getter) Uint(where BindingSrcKind, key string, alias ...string) (
 	return iv, true
 }
 
+func (getter *_Getter) Uints(where BindingSrcKind, base int, key string, alias ...string) ([]uint64, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
+	if !ok {
+		return nil, false
+	}
+	var ints = make([]uint64, 0, len(vs))
+	for _, v := range vs {
+		iv, err := strconv.ParseUint(v, base, 64)
+		if err != nil {
+			return nil, false
+		}
+		ints = append(ints, iv)
+	}
+	return ints, true
+}
+
 func (getter *_Getter) Bool(where BindingSrcKind, key string, alias ...string) (bool, bool) {
 	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
@@ -161,6 +179,22 @@ func (getter *_Getter) Bool(where BindingSrcKind, key string, alias ...string) (
 		return false, false
 	}
 	return iv, true
+}
+
+func (getter *_Getter) Bools(where BindingSrcKind, key string, alias ...string) ([]bool, bool) {
+	vs, ok := getter.getvaluesbynames(where, key, alias...)
+	if !ok || len(vs) < 1 {
+		return nil, false
+	}
+	bools := make([]bool, len(vs))
+	for idx, v := range vs {
+		iv, err := strconv.ParseBool(v)
+		if err != nil {
+			return nil, false
+		}
+		bools[idx] = iv
+	}
+	return bools, true
 }
 
 func (getter *_Getter) Time(where BindingSrcKind, layout string, key string, alias ...string) (time.Time, bool) {
@@ -175,16 +209,20 @@ func (getter *_Getter) Time(where BindingSrcKind, layout string, key string, ali
 	return tv, true
 }
 
-func (getter *_Getter) Duration(where BindingSrcKind, key string, alias ...string) (time.Duration, bool) {
+func (getter *_Getter) Times(where BindingSrcKind, layout string, key string, alias ...string) ([]time.Time, bool) {
 	vs, ok := getter.getvaluesbynames(where, key, alias...)
 	if !ok || len(vs) < 1 {
-		return 0, false
+		return nil, false
 	}
-	tv, err := time.ParseDuration(vs[0])
-	if err != nil {
-		return 0, false
+	times := make([]time.Time, len(vs))
+	for idx, v := range vs {
+		tv, err := time.Parse(layout, v)
+		if err != nil {
+			return nil, false
+		}
+		times[idx] = tv
 	}
-	return tv, true
+	return times, true
 }
 
 func (getter *_Getter) String(where BindingSrcKind, key string, alias ...string) (string, bool) {
@@ -193,6 +231,27 @@ func (getter *_Getter) String(where BindingSrcKind, key string, alias ...string)
 		return "", false
 	}
 	return vs[0], true
+}
+
+func (getter *_Getter) Strings(where BindingSrcKind, key string, alias ...string) ([]string, bool) {
+	return getter.getvaluesbynames(where, key, alias...)
+}
+
+type IUnmarshalString interface {
+	UnmarshalString(string) error
+}
+
+func getany[T IUnmarshalString](getter *_Getter, constructor func() T, where BindingSrcKind, key string, alias ...string) (T, bool) {
+	zero := constructor()
+	v, ok := getter.String(where, key, alias...)
+	if !ok {
+		return zero, false
+	}
+	err := zero.UnmarshalString(v)
+	if err != nil {
+		return zero, false
+	}
+	return zero, true
 }
 
 type _BindingInstance struct {

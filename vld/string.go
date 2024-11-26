@@ -1,10 +1,11 @@
 package vld
 
 import (
-	"fmt"
+	"context"
 	"regexp"
 	"slices"
 
+	"github.com/zzztttkkk/faceless.void/i18n"
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
@@ -59,8 +60,15 @@ func (opts *_StringVldOptions) Custom(fnc func(string) error) *_StringVldOptions
 	return opts
 }
 
-func (opts *_StringVldOptions) Func() func(string) error {
-	var fncs []func(string) error
+var (
+	msgForStringLengthLtMin    = i18n.New(`fv.vld: string length less than min(%d)`)
+	msgForStringLengthGtMax    = i18n.New(`fv.vld: string length greater than max(%d)`)
+	msgForStringNotMatchRegexp = i18n.New(`fv.vld: string not match regexp`)
+	msgForStringNotInEnums     = i18n.New(`fv.vld: string not in enums`)
+)
+
+func (opts *_StringVldOptions) Func() func(context.Context, string) error {
+	var fncs []func(context.Context, string) error
 
 	for _, pair := range opts.pairs {
 		switch pair.key {
@@ -68,9 +76,9 @@ func (opts *_StringVldOptions) Func() func(string) error {
 			{
 				minlen := pair.val.(int)
 				if minlen >= 0 {
-					fncs = append(fncs, func(s string) error {
+					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if len(s) < minlen {
-							return fmt.Errorf("")
+							return newerror(ctx, ErrorKindStringLengthLtMin, msgForStringLengthLtMin, minlen)
 						}
 						return nil
 					})
@@ -81,9 +89,9 @@ func (opts *_StringVldOptions) Func() func(string) error {
 			{
 				maxlen := pair.val.(int)
 				if maxlen >= 0 {
-					fncs = append(fncs, func(s string) error {
+					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if len(s) > maxlen {
-							return fmt.Errorf("")
+							return newerror(ctx, ErrorKindStringLengthGtMax, msgForStringLengthGtMax, maxlen)
 						}
 						return nil
 					})
@@ -94,9 +102,9 @@ func (opts *_StringVldOptions) Func() func(string) error {
 			{
 				regexp := pair.val.(*regexp.Regexp)
 				if regexp != nil {
-					fncs = append(fncs, func(s string) error {
+					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if !regexp.MatchString(s) {
-							return fmt.Errorf("")
+							return newerror(ctx, ErrorKindStringNotMatchRegexp, msgForStringNotMatchRegexp)
 						}
 						return nil
 					})
@@ -107,9 +115,9 @@ func (opts *_StringVldOptions) Func() func(string) error {
 			{
 				names := pair.val.([]string)
 				if len(names) < 16 {
-					fncs = append(fncs, func(s string) error {
+					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if !slices.Contains(names, s) {
-							return fmt.Errorf("")
+							return newerror(ctx, ErrorKindStringNotInEnums, msgForStringNotInEnums)
 						}
 						return nil
 					})
@@ -119,10 +127,10 @@ func (opts *_StringVldOptions) Func() func(string) error {
 						set[txt] = internal.Empty{}
 					}
 
-					fncs = append(fncs, func(s string) error {
+					fncs = append(fncs, func(ctx context.Context, s string) error {
 						_, ok := set[s]
 						if !ok {
-							return fmt.Errorf("")
+							return newerror(ctx, ErrorKindStringNotInEnums, msgForStringNotInEnums)
 						}
 						return nil
 					})
@@ -130,9 +138,15 @@ func (opts *_StringVldOptions) Func() func(string) error {
 			}
 		case stringVldOptionsKeyForCustom:
 			{
-				fnc := pair.val.(func(string) error)
+				fnc := pair.val.(func(context.Context, string) error)
 				if fnc != nil {
-					fncs = append(fncs, fnc)
+					fncs = append(fncs, func(ctx context.Context, s string) error {
+						err := fnc(ctx, s)
+						if err != nil {
+							return newerror(ctx, ErrorKindCustomFunc, msgForCustomFunc, err, s)
+						}
+						return nil
+					})
 				}
 				break
 			}
@@ -142,9 +156,9 @@ func (opts *_StringVldOptions) Func() func(string) error {
 	if len(fncs) < 1 {
 		return nil
 	}
-	return func(v string) error {
+	return func(ctx context.Context, v string) error {
 		for _, fnc := range fncs {
-			err := fnc(v)
+			err := fnc(ctx, v)
 			if err != nil {
 				return err
 			}

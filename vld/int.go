@@ -1,8 +1,10 @@
 package vld
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/zzztttkkk/faceless.void/i18n"
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
@@ -30,8 +32,14 @@ func (opts *_IntVldOptions[T]) MaxValue(v T) *_IntVldOptions[T] {
 	return opts
 }
 
-func (opts *_IntVldOptions[T]) Func() func(T) error {
-	var fncs []func(T) error
+var (
+	msgForIntValueLTMin = i18n.New("fv.vld: less than min(%d), %d")
+	msgForIntValueGTMax = i18n.New("fv.vld: greater than max(%d), %d")
+	msgForCustomFunc    = i18n.New("fv.vld: custom function error(%s), %v")
+)
+
+func (opts *_IntVldOptions[T]) Func() func(context.Context, T) error {
+	var fncs []func(context.Context, T) error
 
 	var min, max T
 	var minok, maxok bool
@@ -44,9 +52,9 @@ func (opts *_IntVldOptions[T]) Func() func(T) error {
 				min = minv
 				minok = true
 
-				fncs = append(fncs, func(t T) error {
+				fncs = append(fncs, func(ctx context.Context, t T) error {
 					if t < minv {
-						return fmt.Errorf("< minv(%d)", minv)
+						return newerror(ctx, ErrorKindIntLtMin, msgForIntValueLTMin, minv, t)
 					}
 					return nil
 				})
@@ -59,33 +67,39 @@ func (opts *_IntVldOptions[T]) Func() func(T) error {
 				max = maxv
 				maxok = true
 
-				fncs = append(fncs, func(t T) error {
+				fncs = append(fncs, func(ctx context.Context, t T) error {
 					if t > maxv {
-						return fmt.Errorf("> maxv(%d)", maxv)
+						return newerror(ctx, ErrorKindIntGtMax, msgForIntValueGTMax, maxv, t)
 					}
 					return nil
 				})
 			}
 		case intVldOptionsKeyForCustom:
 			{
-				fnc := pair.val.(func(T) error)
+				fnc := pair.val.(func(context.Context, T) error)
 				if fnc != nil {
-					fncs = append(fncs, fnc)
+					fncs = append(fncs, func(ctx context.Context, t T) error {
+						err := fnc(ctx, t)
+						if err != nil {
+							return newerror(ctx, ErrorKindCustomFunc, msgForCustomFunc, err, t)
+						}
+						return nil
+					})
 				}
 			}
 		}
 	}
 
 	if minok && maxok && min > max {
-		panic("min > max")
+		panic(fmt.Errorf("fv.vld: min(%d) > max(%d)", min, max))
 	}
 
 	if len(fncs) < 1 {
 		return nil
 	}
-	return func(t T) error {
+	return func(ctx context.Context, t T) error {
 		for _, fnc := range fncs {
-			err := fnc(t)
+			err := fnc(ctx, t)
 			if err != nil {
 				return err
 			}

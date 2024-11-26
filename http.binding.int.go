@@ -16,7 +16,7 @@ type _IntFieldBindding[T internal.IntType] struct {
 	alias []string
 	where BindingSrcKind
 	ptr   *T
-	vld   func(T) error
+	vld   func(context.Context, T) error
 
 	base           int
 	optional       bool
@@ -51,7 +51,7 @@ func (ifb *_IntFieldBindding[T]) From(src BindingSrcKind) *_IntFieldBindding[T] 
 	return ifb
 }
 
-func (ifb *_IntFieldBindding[T]) Validate(vld func(T) error) *_IntFieldBindding[T] {
+func (ifb *_IntFieldBindding[T]) Validate(vld func(context.Context, T) error) *_IntFieldBindding[T] {
 	ifb.vld = vld
 	return ifb
 }
@@ -91,7 +91,7 @@ func (ifb *_IntFieldBindding[T]) do(ctx context.Context) error {
 			}
 		}
 
-		iv, ok := BindingGetter(ctx).Int(ifb.where, ifb.base, ifb.name, ifb.alias...)
+		iv, ok := _BindingGetter(ctx).Int(ifb.where, ifb.base, ifb.name, ifb.alias...)
 		if !ok {
 			if !ifb.defaultvalueok {
 				if !ifb.optional {
@@ -101,7 +101,6 @@ func (ifb *_IntFieldBindding[T]) do(ctx context.Context) error {
 			}
 			iv = int64(ifb.defaultvalue)
 		}
-
 		if iv < min || iv > max {
 			return fmt.Errorf("int overflow")
 		}
@@ -131,7 +130,7 @@ func (ifb *_IntFieldBindding[T]) do(ctx context.Context) error {
 			}
 		}
 
-		uv, ok := BindingGetter(ctx).Uint(ifb.where, ifb.name, ifb.alias...)
+		uv, ok := _BindingGetter(ctx).Uint(ifb.where, ifb.name, ifb.alias...)
 		if !ok {
 			if !ifb.defaultvalueok {
 				if !ifb.optional {
