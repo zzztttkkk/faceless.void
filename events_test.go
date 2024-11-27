@@ -1,7 +1,6 @@
 package fv_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -10,28 +9,31 @@ import (
 	fv "github.com/zzztttkkk/faceless.void"
 )
 
-type OnUserCreated struct {
-	Id    uint64
-	Email string
-}
-
-var OnUserCreatedType = reflect.TypeOf(OnUserCreated{})
-
-func (o *OnUserCreated) UpdateByContext(ctx context.Context) {
-}
-
-var _ fv.IEvent = (*OnUserCreated)(nil)
-
-func TestEventBus(T *testing.T) {
-	fnc := func(at int64, evt fv.IEvent) {
-		eptr := evt.(*OnUserCreated)
-		fmt.Println(at, eptr)
+func TestEvt(t *testing.T) {
+	type AAA struct {
+		A string
+		B int
 	}
 
-	fv.On(OnUserCreatedType, fnc)
+	typeofAAA := reflect.TypeOf(AAA{})
 
-	handled := fv.Emit(context.Background(), OnUserCreatedType, &OnUserCreated{Id: 1, Email: "test@test.com"}, nil)
-	fmt.Println(handled)
+	bus := fv.EventBusBuilder().Workers(1).OnPanic(func(err any, at int64, evttype any, evt any) {
+		switch evttype {
+		case typeofAAA:
+			{
+				fmt.Println(">>>>>>>>>>>>>>>>>>>")
+				break
+			}
+		}
+		fmt.Println("Panic: ", err, at, evttype, evt)
+	}).Build()
 
-	time.Sleep(time.Millisecond * 10)
+	bus.AddListener(typeofAAA, func(at int64, evtany any) {
+		evt := (evtany).(*AAA)
+		fmt.Println(evt, at)
+	})
+
+	evt := AAA{A: "yyy", B: 34}
+	bus.Emit(typeofAAA, &evt)
+	time.Sleep(time.Second)
 }

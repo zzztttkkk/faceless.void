@@ -39,7 +39,7 @@ func (ins *_BindingInstance) String(ptr *string) *_BindingStringField {
 	return sfb
 }
 
-func (ins *_BindingInstance) StringSlice(ptr *[]string, opts *BindingSliceOptions) *_BindingStringField {
+func (ins *_BindingInstance) Strings(ptr *[]string, opts *BindingSliceOptions) *_BindingStringField {
 	sfb := &_BindingStringField{
 		ins:      ins,
 		sliceptr: ptr,
@@ -97,7 +97,7 @@ func (sfb *_BindingStringField) do(ctx context.Context) error {
 	}
 
 	if sfb.ptr != nil {
-		val, ok := _BindingGetter(ctx).String(sfb.where, sfb.name, sfb.alias...)
+		val, ok := Getter(ctx).String(sfb.where, sfb.name, sfb.alias...)
 		if !ok {
 			if !sfb.defaultvalueok {
 				if !sfb.optional {
@@ -118,7 +118,7 @@ func (sfb *_BindingStringField) do(ctx context.Context) error {
 		}
 		*sfb.ptr = val
 	} else {
-		vals, ok := _BindingGetter(ctx).Strings(sfb.where, sfb.name, sfb.alias...)
+		vals, ok := Getter(ctx).Strings(sfb.where, sfb.name, sfb.alias...)
 		if !ok {
 			if !sfb.optional {
 

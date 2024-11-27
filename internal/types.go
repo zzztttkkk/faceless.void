@@ -8,3 +8,8 @@ type IntType interface {
 type Empty struct{}
 
 type Set[K comparable] map[K]Empty
+
+type Pair[K comparable] struct {
+	Key K
+	Val any
+}

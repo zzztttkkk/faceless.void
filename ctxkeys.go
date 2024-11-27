@@ -15,7 +15,7 @@ func HttpRequest(ctx context.Context) *http.Request {
 	panic("empty http.Request")
 }
 
-func _BindingGetter(ctx context.Context) *_Getter {
+func Getter(ctx context.Context) *_Getter {
 	av := ctx.Value(internal.CtxKeyForBindingGetter)
 	if av != nil {
 		return av.(*_Getter)
