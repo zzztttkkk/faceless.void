@@ -7,22 +7,21 @@ import (
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
-type HttpMiddlewareFunc func(ctx context.Context, next func(context.Context) (context.Context, error), req *http.Request, respw http.ResponseWriter) (context.Context, error)
+type HttpMiddlewareFunc func(ctx context.Context, next func(context.Context) error, req *http.Request, respw http.ResponseWriter) error
 
 func wrapMiddleware(fnc HttpHandlerFunc, middleware []HttpMiddlewareFunc) HttpHandlerFunc {
 	mc := len(middleware)
 	return func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
 		var idx = -1
-		var next func(context.Context) (context.Context, error)
-		next = func(ctx context.Context) (context.Context, error) {
+		var next func(context.Context) error
+		next = func(ctx context.Context) error {
 			idx++
 			if idx >= mc {
-				return ctx, fnc(ctx, req, respw)
+				return fnc(ctx, req, respw)
 			}
 			return middleware[idx](ctx, next, req, respw)
 		}
-		_, err := next(ctx)
-		return err
+		return next(ctx)
 	}
 }
 
