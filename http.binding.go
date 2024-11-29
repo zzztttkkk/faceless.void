@@ -237,23 +237,6 @@ func (getter *_Getter) Strings(where BindingSrcKind, key string, alias ...string
 	return getter.getvaluesbynames(where, key, alias...)
 }
 
-type IUnmarshalString interface {
-	UnmarshalString(string) error
-}
-
-func getany[T IUnmarshalString](getter *_Getter, constructor func() T, where BindingSrcKind, key string, alias ...string) (T, bool) {
-	zero := constructor()
-	v, ok := getter.String(where, key, alias...)
-	if !ok {
-		return zero, false
-	}
-	err := zero.UnmarshalString(v)
-	if err != nil {
-		return zero, false
-	}
-	return zero, true
-}
-
 type _BindingInstance struct {
 	ptr    int64
 	info   *_TypeInfo
@@ -281,9 +264,13 @@ func (ins *_BindingInstance) nameof(ptr unsafe.Pointer) string {
 	panic(fmt.Errorf("can not find field info"))
 }
 
-func Binding(vtype reflect.Type, ptr unsafe.Pointer) _BindingInstance {
+func BindingWithType(vtype reflect.Type, ptr unsafe.Pointer) _BindingInstance {
 	return _BindingInstance{
 		ptr:  int64(uintptr(ptr)),
 		info: typeinfos[vtype],
 	}
+}
+
+func Binding[T any](ptr *T) _BindingInstance {
+	return BindingWithType(reflect.TypeOf(ptr).Elem(), unsafe.Pointer(ptr))
 }

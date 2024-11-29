@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
-	"unsafe"
 
 	fv "github.com/zzztttkkk/faceless.void"
 	"github.com/zzztttkkk/faceless.void/vld"
@@ -17,17 +16,13 @@ type RegisterParams struct {
 	Password string
 }
 
-var (
-	typeOfRegisterParams = reflect.TypeOf(RegisterParams{})
-)
-
 func init() {
-	fv.RegisterTypes(typeOfRegisterParams)
+	fv.RegisterTypes(reflect.TypeOf(RegisterParams{}))
 }
 
 // Binding implements fv.IBinding.
 func (params *RegisterParams) Binding(ctx context.Context) error {
-	bnd := fv.Binding(typeOfRegisterParams, unsafe.Pointer(params))
+	bnd := fv.Binding(params)
 	bnd.String(&params.Email).Validate(vld.Strings.Email().Func())
 	bnd.String(&params.Name)
 	bnd.String(&params.Password)

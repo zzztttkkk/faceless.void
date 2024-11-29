@@ -35,7 +35,7 @@ func TestBinding(t *testing.T) {
 	ctx = getter.init(ctx, req)
 
 	var abv ABParams
-	var bnd = Binding(typeofABParams, unsafe.Pointer(&abv))
+	var bnd = BindingWithType(typeofABParams, unsafe.Pointer(&abv))
 	bnd.String(&abv.A)
 	bnd.Int16(&abv.B)
 	bnd.Strings(&abv.C, nil)

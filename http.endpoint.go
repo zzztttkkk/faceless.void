@@ -18,68 +18,59 @@ import (
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
-type endpointOptionKey int
-
-type endpointOptionPair struct {
-	key endpointOptionKey
-	val any
+type endpointBuilder struct {
+	pairs  []internal.Pair[string]
+	funced bool
 }
 
-const (
-	endpointOptionKeyForFilename = endpointOptionKey(iota)
-	endpointOptionKeyForMethods
-	endpointOptionKeyForPattern
-	endpointOptionKeyForDescription
-	endpointOptionKeyForInput
-	endpointOptionKeyForOutput
-	endpointOptionKeyForHandleFunc
-	endpointOptionKeyForAnyFunc
-)
-
-type endpointOptions struct {
-	pairs []endpointOptionPair
+func Endpoint() *endpointBuilder {
+	return &endpointBuilder{}
 }
 
-func Endpoint() *endpointOptions {
-	return &endpointOptions{}
-}
-
-func (opts *endpointOptions) Filename(filename string) *endpointOptions {
-	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForFilename, val: filename})
+func (opts *endpointBuilder) Filename(filename string) *endpointBuilder {
+	opts.pairs = append(opts.pairs, internal.PairOf("filename", filename))
 	return opts
 }
 
-func (opts *endpointOptions) Methods(methods ...string) *endpointOptions {
-	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForMethods, val: methods})
+func (opts *endpointBuilder) Methods(methods ...string) *endpointBuilder {
+	opts.pairs = append(opts.pairs, internal.PairOf("methods", methods))
 	return opts
 }
 
-func (opts *endpointOptions) Pattern(pattern string) *endpointOptions {
-	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForPattern, val: pattern})
+func (opts *endpointBuilder) Pattern(pattern string) *endpointBuilder {
+	opts.pairs = append(opts.pairs, internal.PairOf("pattern", pattern))
 	return opts
 }
 
-func (opts *endpointOptions) Description(description string) *endpointOptions {
-	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForDescription, val: description})
+func (opts *endpointBuilder) Description(description string) *endpointBuilder {
+	opts.pairs = append(opts.pairs, internal.PairOf("description", description))
 	return opts
 }
 
-func (opts *endpointOptions) Input(types ...reflect.Type) *endpointOptions {
-	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForInput, val: types})
+func (opts *endpointBuilder) Input(vals ...any) *endpointBuilder {
+	opts.pairs = append(opts.pairs, internal.PairOf("input", vals))
 	return opts
 }
 
-func (opts *endpointOptions) Output(types ...reflect.Type) *endpointOptions {
-	opts.pairs = append(opts.pairs, endpointOptionPair{key: endpointOptionKeyForOutput, val: types})
+func (opts *endpointBuilder) Output(vals ...any) *endpointBuilder {
+	opts.pairs = append(opts.pairs, internal.PairOf("output", vals))
 	return opts
 }
 
-func (opts *endpointOptions) Func(fnc HttpHandlerFunc) {
-	opts.pairs = append(opts.pairs, endpointOptionPair{endpointOptionKeyForHandleFunc, fnc})
+func (opts *endpointBuilder) Func(fnc HttpHandlerFunc) {
+	if opts.funced {
+		panic("endpoint already has handle function")
+	}
+	opts.funced = true
+	opts.pairs = append(opts.pairs, internal.PairOf("func", fnc))
 }
 
-func (opts *endpointOptions) AnyFunc(fnc any) {
-	opts.pairs = append(opts.pairs, endpointOptionPair{endpointOptionKeyForAnyFunc, fnc})
+func (opts *endpointBuilder) AnyFunc(fnc any) {
+	if opts.funced {
+		panic("endpoint already has handle function")
+	}
+	opts.funced = true
+	opts.pairs = append(opts.pairs, internal.PairOf("anyfunc", fnc))
 }
 
 type IHttpMarshaler interface {
@@ -91,7 +82,7 @@ type httpEndpoint struct {
 	filename  string
 	methods   []string
 	pattern   string
-	handler   IHttpHandler
+	handler   HttpHandlerFunc
 	argTypes  []reflect.Type
 	outTypes  []reflect.Type
 	marshaler IHttpMarshaler
@@ -111,7 +102,7 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 	var bh _Getter
 	ctx := context.WithValue(req.Context(), internal.CtxKeyForHttpRequest, req)
 	ctx = bh.init(ctx, req)
-	err := endpoint.handler.ServeHTTP(ctx, req, rw)
+	err := endpoint.handler(ctx, req, rw)
 
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -127,7 +118,7 @@ var (
 	anonymousFuncNameRegexp = regexp.MustCompile(`^func(\d+)$`)
 )
 
-func RegisterHttpEndpoint(opts *endpointOptions) {
+func RegisterHttpEndpoint(opts *endpointBuilder) {
 
 	endpoint := httpEndpoint{}
 
@@ -135,40 +126,40 @@ func RegisterHttpEndpoint(opts *endpointOptions) {
 	var anyfnc any
 
 	for _, opt := range opts.pairs {
-		switch opt.key {
-		case endpointOptionKeyForFilename:
+		switch opt.Key {
+		case "filename":
 			{
-				endpoint.filename = opt.val.(string)
+				endpoint.filename = opt.Val.(string)
 				break
 			}
-		case endpointOptionKeyForMethods:
+		case "methods":
 			{
-				endpoint.methods = opt.val.([]string)
+				endpoint.methods = opt.Val.([]string)
 				break
 			}
-		case endpointOptionKeyForPattern:
+		case "pattern":
 			{
-				endpoint.pattern = opt.val.(string)
+				endpoint.pattern = opt.Val.(string)
 				break
 			}
-		case endpointOptionKeyForInput:
+		case "input":
 			{
-				endpoint.argTypes = opt.val.([]reflect.Type)
+				endpoint.argTypes = opt.Val.([]reflect.Type)
 				break
 			}
-		case endpointOptionKeyForOutput:
+		case "output":
 			{
-				endpoint.outTypes = opt.val.([]reflect.Type)
+				endpoint.outTypes = opt.Val.([]reflect.Type)
 				break
 			}
-		case endpointOptionKeyForHandleFunc:
+		case "func":
 			{
-				fnc = opt.val.(HttpHandlerFunc)
+				fnc = opt.Val.(HttpHandlerFunc)
 				break
 			}
-		case endpointOptionKeyForAnyFunc:
+		case "anyfunc":
 			{
-				anyfnc = opt.val
+				anyfnc = opt.Val
 				break
 			}
 		}
