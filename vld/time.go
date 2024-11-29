@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type timeVldOptionsKey int
@@ -14,24 +16,22 @@ const (
 	timeVldOptionsKeyForCustom
 )
 
-type _TimeVldOptionPair = _VldOptionPair[timeVldOptionsKey]
-
 type _TimeVldOptions struct {
-	pairs []_TimeVldOptionPair
+	pairs []internal.Pair[timeVldOptionsKey]
 }
 
 func (opts *_TimeVldOptions) Begin(v time.Time) *_TimeVldOptions {
-	opts.pairs = append(opts.pairs, _TimeVldOptionPair{timeVldOptionsKeyForBegin, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(timeVldOptionsKeyForBegin, v))
 	return opts
 }
 
 func (opts *_TimeVldOptions) End(v time.Time) *_TimeVldOptions {
-	opts.pairs = append(opts.pairs, _TimeVldOptionPair{timeVldOptionsKeyForEnd, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(timeVldOptionsKeyForEnd, v))
 	return opts
 }
 
-func (opts *_TimeVldOptions) Custom(fnc func(*time.Time) error) *_TimeVldOptions {
-	opts.pairs = append(opts.pairs, _TimeVldOptionPair{timeVldOptionsKeyForBegin, fnc})
+func (opts *_TimeVldOptions) Custom(fnc func(context.Context, time.Time) error) *_TimeVldOptions {
+	opts.pairs = append(opts.pairs, internal.PairOf(timeVldOptionsKeyForBegin, fnc))
 	return opts
 }
 
@@ -39,10 +39,10 @@ func (opts *_TimeVldOptions) Func() func(context.Context, time.Time) error {
 	var fncs []func(context.Context, time.Time) error
 
 	for _, pair := range opts.pairs {
-		switch pair.key {
+		switch pair.Key {
 		case timeVldOptionsKeyForBegin:
 			{
-				begin := pair.val.(time.Time)
+				begin := pair.Val.(time.Time)
 				fncs = append(fncs, func(ctx context.Context, t time.Time) error {
 					if t.Sub(begin) < 0 {
 						return fmt.Errorf("")
@@ -53,7 +53,7 @@ func (opts *_TimeVldOptions) Func() func(context.Context, time.Time) error {
 			}
 		case timeVldOptionsKeyForEnd:
 			{
-				end := pair.val.(time.Time)
+				end := pair.Val.(time.Time)
 				fncs = append(fncs, func(ctx context.Context, t time.Time) error {
 					if t.Sub(end) > 0 {
 						return fmt.Errorf("")
@@ -64,11 +64,11 @@ func (opts *_TimeVldOptions) Func() func(context.Context, time.Time) error {
 			}
 		case timeVldOptionsKeyForCustom:
 			{
-				fnc := pair.val.(func(context.Context, time.Time) error)
+				fnc := pair.Val.(func(context.Context, time.Time) error)
 				fncs = append(fncs, func(ctx context.Context, t time.Time) error {
 					err := fnc(ctx, t)
 					if err != nil {
-						return newerror(ctx, ErrorKindCustomFunc, msgForCustomFunc, err)
+						return internal.NewError(ctx, ErrorKindVldCustomFunc, msgForCustomFunc, err)
 					}
 					return nil
 				})

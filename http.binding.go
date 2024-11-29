@@ -258,13 +258,13 @@ func (ins *_BindingInstance) nameof(ptr unsafe.Pointer) string {
 	for idx := range ins.info.offsets {
 		ele := &ins.info.offsets[idx]
 		if ele.offset == offset {
-			return ele.field.Name
+			return ele.name
 		}
 	}
-	panic(fmt.Errorf("can not find field info"))
+	panic(fmt.Errorf("fv.binding: can not find field info by offset(%d), %v", offset, ins.info.type_))
 }
 
-func BindingWithType(vtype reflect.Type, ptr unsafe.Pointer) _BindingInstance {
+func BindingWithType(ptr unsafe.Pointer, vtype reflect.Type) _BindingInstance {
 	return _BindingInstance{
 		ptr:  int64(uintptr(ptr)),
 		info: typeinfos[vtype],
@@ -272,5 +272,5 @@ func BindingWithType(vtype reflect.Type, ptr unsafe.Pointer) _BindingInstance {
 }
 
 func Binding[T any](ptr *T) _BindingInstance {
-	return BindingWithType(reflect.TypeOf(ptr).Elem(), unsafe.Pointer(ptr))
+	return BindingWithType(unsafe.Pointer(ptr), reflect.TypeOf(ptr).Elem())
 }

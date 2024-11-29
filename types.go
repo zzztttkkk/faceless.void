@@ -9,14 +9,22 @@ import (
 type _MemOffsetFieldInfo struct {
 	offset int64
 	field  reflect.StructField
+	name   string
 }
 
 type _TypeInfo struct {
+	type_   reflect.Type
 	offsets []_MemOffsetFieldInfo
 }
 
 var (
-	typeinfos = map[reflect.Type]*_TypeInfo{}
+	typeinfos      = map[reflect.Type]*_TypeInfo{}
+	commonTagNames = []string{
+		"bnd", "binding",
+		"json", "toml",
+		"db",
+		"vld", "validate",
+	}
 )
 
 func addOneType(typ reflect.Type) {
@@ -31,7 +39,9 @@ func addOneType(typ reflect.Type) {
 		panic(fmt.Errorf("type `%v` is not a public struct type", typ))
 	}
 
-	info := &_TypeInfo{}
+	info := &_TypeInfo{
+		type_: typ,
+	}
 	typeinfos[typ] = info
 
 	addMemFields(typ, info)
@@ -55,6 +65,7 @@ func addMemFields(typ reflect.Type, info *_TypeInfo) {
 		info.offsets = append(info.offsets, _MemOffsetFieldInfo{
 			offset: int64(faddr) - int64(begin),
 			field:  ft,
+			name:   tag(&ft, commonTagNames...).Name,
 		})
 	}
 }
@@ -63,4 +74,44 @@ func RegisterTypes(types ...reflect.Type) {
 	for _, typ := range types {
 		addOneType(typ)
 	}
+}
+
+type Tag struct {
+	Name    string
+	Options map[string]string
+}
+
+func tag(fv *reflect.StructField, names ...string) Tag {
+	var tv string
+	for _, name := range names {
+		tv = fv.Tag.Get(name)
+		if tv != "" {
+			break
+		}
+	}
+
+	tag := Tag{}
+
+	parts := strings.Split(tv, ",")
+	for idx := range parts {
+		parts[idx] = strings.TrimSpace(parts[idx])
+	}
+
+	name, remains := parts[0], parts[1:]
+	if name == "" {
+		name = fv.Name
+	}
+	tag.Name = name
+	for _, v := range remains {
+		idx := strings.Index(v, "=")
+		if tag.Options == nil {
+			tag.Options = map[string]string{}
+		}
+		if idx > -1 {
+			tag.Options[strings.TrimSpace(v[:idx])] = strings.TrimSpace(v[idx+1:])
+		} else {
+			tag.Options[v] = ""
+		}
+	}
+	return tag
 }

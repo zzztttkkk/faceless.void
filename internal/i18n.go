@@ -1,10 +1,8 @@
-package i18n
+package internal
 
 import (
 	"context"
 	"fmt"
-
-	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type translateData struct {
@@ -12,27 +10,27 @@ type translateData struct {
 	txt  string
 }
 
-type String struct {
+type I18nString struct {
 	content string
 	langs   []translateData
 }
 
 var (
-	alli18ns = map[string]*String{}
+	alli18ns = map[string]*I18nString{}
 )
 
-func New(txt string) *String {
+func NewI18nString(txt string) *I18nString {
 	ele, ok := alli18ns[txt]
 	if ok {
 		return ele
 	}
-	ele = &String{content: txt}
+	ele = &I18nString{content: txt}
 	alli18ns[txt] = ele
 	return ele
 }
 
-func (str *String) Format(ctx context.Context, args ...any) string {
-	lang := ctx.Value(internal.CtxKeyForLanguageKind)
+func (str *I18nString) Format(ctx context.Context, args ...any) string {
+	lang := ctx.Value(CtxKeyForLanguageKind)
 	if lang == nil {
 		return fmt.Sprintf(str.content, args...)
 	}
@@ -43,5 +41,3 @@ func (str *String) Format(ctx context.Context, args ...any) string {
 	}
 	return fmt.Sprintf(str.content, args...)
 }
-
-func ExportRaw(filename string) {}

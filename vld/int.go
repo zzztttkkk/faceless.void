@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zzztttkkk/faceless.void/i18n"
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
@@ -16,26 +15,29 @@ const (
 	intVldOptionsKeyForCustom
 )
 
-type _IntVldOptionPair = _VldOptionPair[intVldOptionsKey]
-
 type _IntVldOptions[T internal.IntType] struct {
-	pairs []_IntVldOptionPair
+	pairs []internal.Pair[intVldOptionsKey]
 }
 
 func (opts *_IntVldOptions[T]) MinValue(v T) *_IntVldOptions[T] {
-	opts.pairs = append(opts.pairs, _IntVldOptionPair{intVldOptionsKeyForMinV, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(intVldOptionsKeyForMinV, v))
 	return opts
 }
 
 func (opts *_IntVldOptions[T]) MaxValue(v T) *_IntVldOptions[T] {
-	opts.pairs = append(opts.pairs, _IntVldOptionPair{intVldOptionsKeyForMaxV, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(intVldOptionsKeyForMaxV, v))
+	return opts
+}
+
+func (opts *_IntVldOptions[T]) Custom(fnc func(context.Context, T) error) *_IntVldOptions[T] {
+	opts.pairs = append(opts.pairs, internal.PairOf(intVldOptionsKeyForCustom, fnc))
 	return opts
 }
 
 var (
-	msgForIntValueLTMin = i18n.New("fv.vld: less than min(%d), %d")
-	msgForIntValueGTMax = i18n.New("fv.vld: greater than max(%d), %d")
-	msgForCustomFunc    = i18n.New("fv.vld: custom function error(%s), %v")
+	msgForIntValueLTMin = internal.NewI18nString("fv.vld: less than min(%d), %d")
+	msgForIntValueGTMax = internal.NewI18nString("fv.vld: greater than max(%d), %d")
+	msgForCustomFunc    = internal.NewI18nString("fv.vld: custom function error(%s), %v")
 )
 
 func (opts *_IntVldOptions[T]) Func() func(context.Context, T) error {
@@ -44,17 +46,17 @@ func (opts *_IntVldOptions[T]) Func() func(context.Context, T) error {
 	var min, max T
 	var minok, maxok bool
 	for _, pair := range opts.pairs {
-		switch pair.key {
+		switch pair.Key {
 		case intVldOptionsKeyForMinV:
 			{
-				minv := pair.val.(T)
+				minv := pair.Val.(T)
 
 				min = minv
 				minok = true
 
 				fncs = append(fncs, func(ctx context.Context, t T) error {
 					if t < minv {
-						return newerror(ctx, ErrorKindIntLtMin, msgForIntValueLTMin, minv, t)
+						return internal.NewError(ctx, ErrorKindVldIntLtMin, msgForIntValueLTMin, minv, t)
 					}
 					return nil
 				})
@@ -62,26 +64,26 @@ func (opts *_IntVldOptions[T]) Func() func(context.Context, T) error {
 			}
 		case intVldOptionsKeyForMaxV:
 			{
-				maxv := pair.val.(T)
+				maxv := pair.Val.(T)
 
 				max = maxv
 				maxok = true
 
 				fncs = append(fncs, func(ctx context.Context, t T) error {
 					if t > maxv {
-						return newerror(ctx, ErrorKindIntGtMax, msgForIntValueGTMax, maxv, t)
+						return internal.NewError(ctx, ErrorKindVldIntGtMax, msgForIntValueGTMax, maxv, t)
 					}
 					return nil
 				})
 			}
 		case intVldOptionsKeyForCustom:
 			{
-				fnc := pair.val.(func(context.Context, T) error)
+				fnc := pair.Val.(func(context.Context, T) error)
 				if fnc != nil {
 					fncs = append(fncs, func(ctx context.Context, t T) error {
 						err := fnc(ctx, t)
 						if err != nil {
-							return newerror(ctx, ErrorKindCustomFunc, msgForCustomFunc, err, t)
+							return internal.NewError(ctx, ErrorKindVldCustomFunc, msgForCustomFunc, err, t)
 						}
 						return nil
 					})

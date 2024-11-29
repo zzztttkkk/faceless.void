@@ -1,37 +1,23 @@
 package vld
 
 import (
-	"context"
-
-	"github.com/zzztttkkk/faceless.void/i18n"
+	"github.com/zzztttkkk/faceless.void/internal"
 )
-
-type ErrorKind int
 
 const (
-	ErrorKindIntLtMin = ErrorKind(iota)
-	ErrorKindIntGtMax
-	ErrorKindCustomFunc
-	ErrorKindStringLengthLtMin
-	ErrorKindStringLengthGtMax
-	ErrorKindStringNotMatchRegexp
-	ErrorKindStringNotInEnums
+	ErrorKindVldIntLtMin = internal.ErrorKind(iota)
+	ErrorKindVldIntGtMax
+	ErrorKindVldCustomFunc
+	ErrorKindVldStringLengthLtMin
+	ErrorKindVldStringLengthGtMax
+	ErrorKindVldStringNotMatchRegexp
+	ErrorKindVldStringNotInEnums
+
+	_MaxVldErrorKind
 )
 
-type vldError struct {
-	kind ErrorKind
-	args []any
-	msg  string
-}
-
-func (err vldError) Error() string {
-	return err.msg
-}
-
-func newerror(ctx context.Context, kind ErrorKind, i18n *i18n.String, args ...any) vldError {
-	return vldError{
-		kind: kind,
-		msg:  i18n.Format(ctx, args...),
-		args: args,
+func init() {
+	if _MaxVldErrorKind >= internal.MaxVldErrorKind {
+		panic("vld error kind > internal.MaxVldErrorKind")
 	}
 }

@@ -39,12 +39,12 @@ func EventBusBuilder() *_EventBusBuilder {
 }
 
 func (builder *_EventBusBuilder) OnPanic(fnc func(err any, at int64, evttype any, evtptr any)) *_EventBusBuilder {
-	builder.pairs = append(builder.pairs, internal.Pair[string]{Key: "onpanic", Val: fnc})
+	builder.pairs = append(builder.pairs, internal.PairOf("onpanic", fnc))
 	return builder
 }
 
 func (builder *_EventBusBuilder) Workers(v int) *_EventBusBuilder {
-	builder.pairs = append(builder.pairs, internal.Pair[string]{Key: "workers", Val: v})
+	builder.pairs = append(builder.pairs, internal.PairOf("workers", v))
 	return builder
 }
 

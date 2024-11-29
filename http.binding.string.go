@@ -2,9 +2,10 @@ package fv
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"unsafe"
+
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type BindingSliceOptions struct {
@@ -28,6 +29,8 @@ type _BindingStringField struct {
 	trimspace      bool
 	defaultvalue   string
 	defaultvalueok bool
+
+	dofnc func(ctx context.Context) error
 }
 
 func (ins *_BindingInstance) String(ptr *string) *_BindingStringField {
@@ -35,6 +38,7 @@ func (ins *_BindingInstance) String(ptr *string) *_BindingStringField {
 		ins: ins,
 		ptr: ptr,
 	}
+	sfb.dofnc = sfb.doForOne
 	ins.fields = append(ins.fields, sfb.do)
 	return sfb
 }
@@ -44,6 +48,7 @@ func (ins *_BindingInstance) Strings(ptr *[]string, opts *BindingSliceOptions) *
 		ins:      ins,
 		sliceptr: ptr,
 	}
+	sfb.dofnc = sfb.doForMany
 	ins.fields = append(ins.fields, sfb.do)
 	return sfb
 }
@@ -87,64 +92,72 @@ func (sfb *_BindingStringField) Validate(vld func(context.Context, string) error
 	return sfb
 }
 
-func (sfb *_BindingStringField) do(ctx context.Context) error {
+func (sfb *_BindingStringField) doForMany(ctx context.Context) error {
 	if sfb.name == "" {
-		if sfb.ptr != nil {
-			sfb.name = sfb.ins.nameof(unsafe.Pointer(sfb.ptr))
-		} else {
-			sfb.name = sfb.ins.nameof(unsafe.Pointer(sfb.sliceptr))
-		}
+		sfb.name = sfb.ins.nameof(unsafe.Pointer(sfb.sliceptr))
 	}
 
-	if sfb.ptr != nil {
-		val, ok := Getter(ctx).String(sfb.where, sfb.name, sfb.alias...)
-		if !ok {
-			if !sfb.defaultvalueok {
-				if !sfb.optional {
-					return fmt.Errorf("missing required filed: `%s`", sfb.name)
-				}
-				return nil
+	vals, ok := Getter(ctx).Strings(sfb.where, sfb.name, sfb.alias...)
+	if !ok {
+		if !sfb.optional {
+			return internal.NewError(ctx, internal.ErrorKind(ErrorKindBindingMissingRequired), msgForBindingMissingRequired, sfb.name)
+		}
+		return nil
+	}
+
+	if sfb.vld == nil {
+		for _, val := range vals {
+			if sfb.trimspace {
+				val = strings.TrimSpace(val)
 			}
-			val = sfb.defaultvalue
+			*(sfb.sliceptr) = append(*(sfb.sliceptr), val)
 		}
-		if sfb.trimspace {
-			val = strings.TrimSpace(val)
-		}
-		if sfb.vld != nil {
+	} else {
+		for _, val := range vals {
+			if sfb.trimspace {
+				val = strings.TrimSpace(val)
+			}
 			err := sfb.vld(ctx, val)
 			if err != nil {
 				return err
 			}
-		}
-		*sfb.ptr = val
-	} else {
-		vals, ok := Getter(ctx).Strings(sfb.where, sfb.name, sfb.alias...)
-		if !ok {
-			if !sfb.optional {
-
-			}
-			return nil
-		}
-
-		if sfb.vld == nil {
-			for _, val := range vals {
-				if sfb.trimspace {
-					val = strings.TrimSpace(val)
-				}
-				*(sfb.sliceptr) = append(*(sfb.sliceptr), val)
-			}
-		} else {
-			for _, val := range vals {
-				if sfb.trimspace {
-					val = strings.TrimSpace(val)
-				}
-				err := sfb.vld(ctx, val)
-				if err != nil {
-					return err
-				}
-				*(sfb.sliceptr) = append(*(sfb.sliceptr), val)
-			}
+			*(sfb.sliceptr) = append(*(sfb.sliceptr), val)
 		}
 	}
 	return nil
+}
+
+var (
+	msgForBindingMissingRequired = internal.NewI18nString("")
+)
+
+func (sfb *_BindingStringField) doForOne(ctx context.Context) error {
+	if sfb.name == "" {
+		sfb.name = sfb.ins.nameof(unsafe.Pointer(sfb.ptr))
+	}
+	val, ok := Getter(ctx).String(sfb.where, sfb.name, sfb.alias...)
+	if !ok {
+		if !sfb.defaultvalueok {
+			if !sfb.optional {
+				return internal.NewError(ctx, internal.ErrorKind(ErrorKindBindingMissingRequired), msgForBindingMissingRequired, sfb.name)
+			}
+			return nil
+		}
+		val = sfb.defaultvalue
+	}
+	if sfb.trimspace {
+		val = strings.TrimSpace(val)
+	}
+	if sfb.vld != nil {
+		err := sfb.vld(ctx, val)
+		if err != nil {
+			return err
+		}
+	}
+	*sfb.ptr = val
+	return nil
+}
+
+func (sfb *_BindingStringField) do(ctx context.Context) error {
+	return sfb.dofnc(ctx)
 }

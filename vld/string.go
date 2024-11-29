@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/zzztttkkk/faceless.void/i18n"
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
@@ -19,66 +18,59 @@ const (
 	stringVldOptionsKeyForCustom
 )
 
-type _VldOptionPair[K ~int] struct {
-	key K
-	val any
-}
-
-type _StringVldOptionPair = _VldOptionPair[stringVldOptionsKey]
-
 type _StringVldOptions struct {
-	pairs []_StringVldOptionPair
+	pairs []internal.Pair[stringVldOptionsKey]
 }
 
 func (opts *_StringVldOptions) MinLen(v int) *_StringVldOptions {
-	opts.pairs = append(opts.pairs, _StringVldOptionPair{stringVldOptionsKeyForMinLen, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(stringVldOptionsKeyForMinLen, v))
 	return opts
 }
 
 func (opts *_StringVldOptions) MaxLen(v int) *_StringVldOptions {
-	opts.pairs = append(opts.pairs, _StringVldOptionPair{stringVldOptionsKeyForMaxLen, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(stringVldOptionsKeyForMaxLen, v))
 	return opts
 }
 
 func (opts *_StringVldOptions) Regexp(v *regexp.Regexp) *_StringVldOptions {
-	opts.pairs = append(opts.pairs, _StringVldOptionPair{stringVldOptionsKeyForRegexp, v})
+	opts.pairs = append(opts.pairs, internal.PairOf(stringVldOptionsKeyForRegexp, v))
 	return opts
 }
 
 func (opts *_StringVldOptions) RegexpString(v string) *_StringVldOptions {
-	opts.pairs = append(opts.pairs, _StringVldOptionPair{stringVldOptionsKeyForRegexp, regexp.MustCompile(v)})
+	opts.pairs = append(opts.pairs, internal.PairOf(stringVldOptionsKeyForRegexp, regexp.MustCompile(v)))
 	return opts
 }
 
 func (opts *_StringVldOptions) Enum(names []string) *_StringVldOptions {
-	opts.pairs = append(opts.pairs, _StringVldOptionPair{stringVldOptionsKeyForEnum, names})
+	opts.pairs = append(opts.pairs, internal.PairOf(stringVldOptionsKeyForEnum, names))
 	return opts
 }
 
 func (opts *_StringVldOptions) Custom(fnc func(string) error) *_StringVldOptions {
-	opts.pairs = append(opts.pairs, _StringVldOptionPair{stringVldOptionsKeyForCustom, fnc})
+	opts.pairs = append(opts.pairs, internal.PairOf(stringVldOptionsKeyForCustom, fnc))
 	return opts
 }
 
 var (
-	msgForStringLengthLtMin    = i18n.New(`fv.vld: string length less than min(%d)`)
-	msgForStringLengthGtMax    = i18n.New(`fv.vld: string length greater than max(%d)`)
-	msgForStringNotMatchRegexp = i18n.New(`fv.vld: string not match regexp`)
-	msgForStringNotInEnums     = i18n.New(`fv.vld: string not in enums`)
+	msgForStringLengthLtMin    = internal.NewI18nString(`fv.vld: string length less than min(%d)`)
+	msgForStringLengthGtMax    = internal.NewI18nString(`fv.vld: string length greater than max(%d)`)
+	msgForStringNotMatchRegexp = internal.NewI18nString(`fv.vld: string not match regexp`)
+	msgForStringNotInEnums     = internal.NewI18nString(`fv.vld: string not in enums`)
 )
 
 func (opts *_StringVldOptions) Func() func(context.Context, string) error {
 	var fncs []func(context.Context, string) error
 
 	for _, pair := range opts.pairs {
-		switch pair.key {
+		switch pair.Key {
 		case stringVldOptionsKeyForMinLen:
 			{
-				minlen := pair.val.(int)
+				minlen := pair.Val.(int)
 				if minlen >= 0 {
 					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if len(s) < minlen {
-							return newerror(ctx, ErrorKindStringLengthLtMin, msgForStringLengthLtMin, minlen)
+							return internal.NewError(ctx, ErrorKindVldStringLengthLtMin, msgForStringLengthLtMin, minlen)
 						}
 						return nil
 					})
@@ -87,11 +79,11 @@ func (opts *_StringVldOptions) Func() func(context.Context, string) error {
 			}
 		case stringVldOptionsKeyForMaxLen:
 			{
-				maxlen := pair.val.(int)
+				maxlen := pair.Val.(int)
 				if maxlen >= 0 {
 					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if len(s) > maxlen {
-							return newerror(ctx, ErrorKindStringLengthGtMax, msgForStringLengthGtMax, maxlen)
+							return internal.NewError(ctx, ErrorKindVldStringLengthGtMax, msgForStringLengthGtMax, maxlen)
 						}
 						return nil
 					})
@@ -100,11 +92,11 @@ func (opts *_StringVldOptions) Func() func(context.Context, string) error {
 			}
 		case stringVldOptionsKeyForRegexp:
 			{
-				regexp := pair.val.(*regexp.Regexp)
+				regexp := pair.Val.(*regexp.Regexp)
 				if regexp != nil {
 					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if !regexp.MatchString(s) {
-							return newerror(ctx, ErrorKindStringNotMatchRegexp, msgForStringNotMatchRegexp)
+							return internal.NewError(ctx, ErrorKindVldStringNotMatchRegexp, msgForStringNotMatchRegexp)
 						}
 						return nil
 					})
@@ -113,11 +105,11 @@ func (opts *_StringVldOptions) Func() func(context.Context, string) error {
 			}
 		case stringVldOptionsKeyForEnum:
 			{
-				names := pair.val.([]string)
+				names := pair.Val.([]string)
 				if len(names) < 16 {
 					fncs = append(fncs, func(ctx context.Context, s string) error {
 						if !slices.Contains(names, s) {
-							return newerror(ctx, ErrorKindStringNotInEnums, msgForStringNotInEnums)
+							return internal.NewError(ctx, ErrorKindVldStringNotInEnums, msgForStringNotInEnums)
 						}
 						return nil
 					})
@@ -130,7 +122,7 @@ func (opts *_StringVldOptions) Func() func(context.Context, string) error {
 					fncs = append(fncs, func(ctx context.Context, s string) error {
 						_, ok := set[s]
 						if !ok {
-							return newerror(ctx, ErrorKindStringNotInEnums, msgForStringNotInEnums)
+							return internal.NewError(ctx, ErrorKindVldStringNotInEnums, msgForStringNotInEnums)
 						}
 						return nil
 					})
@@ -138,12 +130,12 @@ func (opts *_StringVldOptions) Func() func(context.Context, string) error {
 			}
 		case stringVldOptionsKeyForCustom:
 			{
-				fnc := pair.val.(func(context.Context, string) error)
+				fnc := pair.Val.(func(context.Context, string) error)
 				if fnc != nil {
 					fncs = append(fncs, func(ctx context.Context, s string) error {
 						err := fnc(ctx, s)
 						if err != nil {
-							return newerror(ctx, ErrorKindCustomFunc, msgForCustomFunc, err, s)
+							return internal.NewError(ctx, ErrorKindVldCustomFunc, msgForCustomFunc, err, s)
 						}
 						return nil
 					})

@@ -12,8 +12,8 @@ import (
 )
 
 type ABParams struct {
-	A string
-	B int16
+	A string `bnd:",aa=we,b=45,c"`
+	B int16  `bnd:"b"`
 	C []string
 	D []int32
 }
@@ -35,12 +35,12 @@ func TestBinding(t *testing.T) {
 	ctx = getter.init(ctx, req)
 
 	var abv ABParams
-	var bnd = BindingWithType(typeofABParams, unsafe.Pointer(&abv))
+	var bnd = BindingWithType(unsafe.Pointer(&abv), typeofABParams)
 	bnd.String(&abv.A)
 	bnd.Int16(&abv.B)
 	bnd.Strings(&abv.C, nil)
 	bnd.Int32Slice(&abv.D)
 
 	fmt.Println(bnd.Error(ctx))
-	fmt.Println(abv)
+	fmt.Println(abv, ErrorKindBindingMissingRequired, ErrorKindBindingParseFailed)
 }
