@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"strconv"
 	"time"
@@ -42,6 +43,7 @@ const (
 	BindingSrcQuery
 	BindingSrcPostForm
 	BindingSrcPathValue
+	BindingSrcOsEnv
 )
 
 const (
@@ -94,6 +96,15 @@ func (getter *_Getter) getvalues(where BindingSrcKind, key string) ([]string, bo
 			getter.req.ParseMultipartForm(defaultMaxMemory)
 			vs, ok = getter.req.PostForm[key]
 			break
+		}
+	case BindingSrcOsEnv:
+		{
+			v, ok := os.LookupEnv(key)
+			if ok {
+				vs = append(vs, v)
+				return vs, true
+			}
+			return nil, false
 		}
 	}
 	return vs, ok

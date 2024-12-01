@@ -1,20 +1,19 @@
 package fv
 
 import (
-	"context"
 	"fmt"
-	"reflect"
 	"testing"
+
+	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 func TestEnv(t *testing.T) {
-	v, e := parseOneEnvValue(context.Background(), reflect.TypeOf([]int{}), "[1, 23]", false)
-	if e != nil {
-		t.Fatal(e)
+	kvs := internal.Must(LoadEnv("./a.env"))
+	for k, v := range kvs {
+		fmt.Println("--------------------BEGIN----------------")
+		fmt.Println(k)
+		fmt.Println("--------------------")
+		fmt.Println(v)
+		fmt.Println("--------------------END-----------------")
 	}
-	ptr, ok := v.Interface().([]int)
-	if !ok {
-		t.Fatal(v)
-	}
-	fmt.Println(ptr)
 }
