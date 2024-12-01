@@ -153,5 +153,4 @@ func (ebus *_EventBus) Emit(evttype any, evt any) {
 	for _, fnc := range handlers {
 		go fnc.wrapped(now, evt)
 	}
-	return
 }

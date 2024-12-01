@@ -42,9 +42,9 @@ func TestDi(t *testing.T) {
 		fmt.Println("D 1")
 	}).Register(func(d *D) {
 		fmt.Println("D 2")
-	}).Register(func(f F, gtvg fv.Token[*G]) {
-		g12 := gtvg.Get("12")
-		g13 := gtvg.Get("13")
+	}).Register(func(f F, token fv.Token[*G]) {
+		g12 := token.Get("12")
+		g13 := token.Get("13")
 		fmt.Println("F", f, g12, g13)
 	}).
 		Run()

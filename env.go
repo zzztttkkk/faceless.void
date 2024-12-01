@@ -19,10 +19,14 @@ func LoadEnv(files ...string) (map[string]string, error) {
 	return kvs, nil
 }
 
+const (
+	multiLinesStringStarts = `"""`
+)
+
 func loadOneEnvFile(fp string, kvs map[string]string) error {
 	fv, err := os.Open(fp)
 	if err != nil {
-		return nil
+		return err
 	}
 	defer fv.Close()
 
@@ -38,7 +42,7 @@ func loadOneEnvFile(fp string, kvs map[string]string) error {
 		txt := string(line)
 		trimed := strings.TrimSpace(txt)
 		if inMultiLines {
-			if strings.HasSuffix(trimed, "\"\"\"") {
+			if strings.HasSuffix(trimed, multiLinesStringStarts) {
 				currentValue = append(currentValue, trimed[:len(trimed)-3])
 				inMultiLines = false
 				kvs[currentKey] = strings.Join(currentValue, "\n")
@@ -60,7 +64,7 @@ func loadOneEnvFile(fp string, kvs map[string]string) error {
 
 		key := strings.TrimSpace(txt[:idx])
 		val := strings.TrimSpace(txt[idx+1:])
-		if strings.HasPrefix(val, "\"\"\"") {
+		if strings.HasPrefix(val, multiLinesStringStarts) {
 			currentKey = key
 			currentValue = append(currentValue, val[3:])
 			inMultiLines = true

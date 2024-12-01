@@ -22,11 +22,33 @@ const (
 	RotateKindFileSize
 )
 
-type RotateOptions struct {
-	Kind          RotateKind
-	MaxSize       int64
-	BufferSize    int
-	OnRotateError func(error)
+type _RotateFileBuilder struct {
+	pairs []internal.Pair[string]
+}
+
+func (builder *_RotateFileBuilder) Filepath(fp string) *_RotateFileBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("filepath", fp))
+	return builder
+}
+
+func (builder *_RotateFileBuilder) Kind(kind RotateKind) *_RotateFileBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("kind", kind))
+	return builder
+}
+
+func (builder *_RotateFileBuilder) MaxSize(maxsize int64) *_RotateFileBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("maxsize", maxsize))
+	return builder
+}
+
+func (builder *_RotateFileBuilder) BufferSize(bufsize int) *_RotateFileBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("bufsize", bufsize))
+	return builder
+}
+
+func (builder *_RotateFileBuilder) OnRotateError(fnc func(error)) *_RotateFileBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("onerror", fnc))
+	return builder
 }
 
 type _AutoRotateFile struct {
@@ -35,41 +57,82 @@ type _AutoRotateFile struct {
 	fins        *os.File
 	w           *bufio.Writer
 	currentSize int64
-	opts        *RotateOptions
-	closed      bool
+
+	kind          RotateKind
+	maxSize       int64
+	bufferSize    int
+	onRotateError func(error)
+
+	closed bool
 
 	fname string
 	fext  string
 	timer *time.Timer
 }
 
-func NewAutoRotateFile(fp string, opts *RotateOptions) io.WriteCloser {
-	if opts == nil {
-		opts = &RotateOptions{}
-	}
-	if opts.BufferSize < 4096 {
-		opts.BufferSize = 4096
+func (builder *_RotateFileBuilder) Build() io.WriteCloser {
+	ins := &_AutoRotateFile{}
+
+	for _, pair := range builder.pairs {
+		switch pair.Key {
+		case "filepath":
+			{
+				fp := pair.Val.(string)
+				ext := path.Ext(fp)
+				ins.fp = fp
+				ins.fext = ext
+				ins.fname = fp[0 : len(fp)-len(ext)]
+				break
+			}
+		case "kind":
+			{
+				ins.kind = pair.Val.(RotateKind)
+				break
+			}
+		case "bufsize":
+			{
+				ins.bufferSize = pair.Val.(int)
+				break
+			}
+		case "maxsize":
+			{
+				ins.maxSize = pair.Val.(int64)
+				break
+			}
+		case "onerror":
+			{
+				ins.onRotateError = pair.Val.(func(error))
+				break
+			}
+		}
 	}
 
-	if opts.Kind == RotateKindFileSize && opts.MaxSize < 1 {
-		panic(errors.New(`rotate by size, but max size < 1`))
+	if ins.fp == "" {
+		panic(errors.New("empty filepath"))
 	}
 
-	ext := path.Ext(fp)
-
-	arf := &_AutoRotateFile{fp: fp, opts: opts, fext: ext, fname: fp[0 : len(fp)-len(ext)]}
-	if arf.opts.Kind != RotateKindFileSize {
-		arf.rotateByTime()
+	if ins.bufferSize < 4096 {
+		ins.bufferSize = 4096
 	}
-	return arf
+	if ins.kind == RotateKindFileSize && ins.maxSize < 1 {
+		ins.maxSize = 1024 * 1024 * 64 // 64MB
+	}
+	if ins.kind != RotateKindFileSize {
+		ins.rotateByTime()
+	}
+	return ins
+}
+
+func RotateFileBuilder() *_RotateFileBuilder {
+	return &_RotateFileBuilder{}
 }
 
 func (arf *_AutoRotateFile) doRotate(newname string) {
 	err := arf.doClose()
 	if err != nil {
 		err = fmt.Errorf("rotate error: when flush, %s", err)
-		if arf.opts.OnRotateError != nil {
-			arf.opts.OnRotateError(err)
+		if arf.onRotateError != nil {
+			arf.onRotateError(err)
 		} else {
 			fmt.Println(err)
 		}
@@ -77,8 +140,8 @@ func (arf *_AutoRotateFile) doRotate(newname string) {
 	err = os.Rename(arf.fp, newname)
 	if err != nil {
 		err = fmt.Errorf("rotate error: when rename, %s", err)
-		if arf.opts.OnRotateError != nil {
-			arf.opts.OnRotateError(err)
+		if arf.onRotateError != nil {
+			arf.onRotateError(err)
 		} else {
 			fmt.Println(err)
 		}
@@ -89,7 +152,7 @@ func (arf *_AutoRotateFile) rotateByTime() {
 	now := time.Now()
 	var end time.Time
 	var timepart string
-	switch arf.opts.Kind {
+	switch arf.kind {
 	case RotateKindDaily:
 		{
 			end = time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999, time.Local)
@@ -180,7 +243,7 @@ func (arf *_AutoRotateFile) Write(p []byte) (n int, err error) {
 		arf.currentSize = stat.Size()
 		arf.fins = f
 		if arf.w == nil {
-			arf.w = bufio.NewWriterSize(arf.fins, arf.opts.BufferSize)
+			arf.w = bufio.NewWriterSize(arf.fins, arf.bufferSize)
 		} else {
 			arf.w.Reset(arf.fins)
 		}
@@ -191,9 +254,9 @@ func (arf *_AutoRotateFile) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 
-	if arf.opts.Kind == RotateKindFileSize {
+	if arf.kind == RotateKindFileSize {
 		arf.currentSize += int64(len(p))
-		if arf.currentSize >= arf.opts.MaxSize {
+		if arf.currentSize >= arf.maxSize {
 			arf.doRotate(fmt.Sprintf(`%s.%s%s`, arf.fname, time.Now().Format("20060102150405.000"), arf.fext))
 		}
 	}
