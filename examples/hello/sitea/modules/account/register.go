@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"encoding/json"
+	"hello/sitea/modules/internal"
 	"net/http"
 	"reflect"
 
@@ -41,6 +42,17 @@ func Register(ctx context.Context, params *RegisterParams) (*RegisterResult, err
 }
 
 func init() {
+	internal.Delgates.Register.Set(func(ctx context.Context, email, pwd string) (string, error) {
+		var params RegisterParams
+		params.Email = email
+		params.Password = pwd
+		r, e := Register(ctx, &params)
+		if e != nil {
+			return "", nil
+		}
+		return r.Id, nil
+	})
+
 	fv.Endpoint().
 		Func(
 			func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
