@@ -19,8 +19,9 @@ import (
 )
 
 type endpointBuilder struct {
-	pairs  []internal.Pair[string]
-	funced bool
+	pairs      []internal.Pair[string]
+	middleware []HttpMiddlewareFunc
+	funced     bool
 }
 
 func Endpoint() *endpointBuilder {
@@ -54,6 +55,11 @@ func (opts *endpointBuilder) Input(vals ...any) *endpointBuilder {
 
 func (opts *endpointBuilder) Output(vals ...any) *endpointBuilder {
 	opts.pairs = append(opts.pairs, internal.PairOf("output", vals))
+	return opts
+}
+
+func (opts *endpointBuilder) Use(fncs ...HttpMiddlewareFunc) *endpointBuilder {
+	opts.middleware = append(opts.middleware, fncs...)
 	return opts
 }
 
