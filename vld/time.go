@@ -16,26 +16,26 @@ const (
 	timeVldOptionsKeyForCustom
 )
 
-type _TimeVldOptions struct {
+type _TimeVldBuilder struct {
 	pairs []internal.Pair[timeVldOptionsKey]
 }
 
-func (opts *_TimeVldOptions) Begin(v time.Time) *_TimeVldOptions {
+func (opts *_TimeVldBuilder) Begin(v time.Time) *_TimeVldBuilder {
 	opts.pairs = append(opts.pairs, internal.PairOf(timeVldOptionsKeyForBegin, v))
 	return opts
 }
 
-func (opts *_TimeVldOptions) End(v time.Time) *_TimeVldOptions {
+func (opts *_TimeVldBuilder) End(v time.Time) *_TimeVldBuilder {
 	opts.pairs = append(opts.pairs, internal.PairOf(timeVldOptionsKeyForEnd, v))
 	return opts
 }
 
-func (opts *_TimeVldOptions) Custom(fnc func(context.Context, time.Time) error) *_TimeVldOptions {
+func (opts *_TimeVldBuilder) Custom(fnc func(context.Context, time.Time) error) *_TimeVldBuilder {
 	opts.pairs = append(opts.pairs, internal.PairOf(timeVldOptionsKeyForBegin, fnc))
 	return opts
 }
 
-func (opts *_TimeVldOptions) Func() func(context.Context, time.Time) error {
+func (opts *_TimeVldBuilder) Func() func(context.Context, time.Time) error {
 	var fncs []func(context.Context, time.Time) error
 
 	for _, pair := range opts.pairs {
@@ -90,6 +90,6 @@ func (opts *_TimeVldOptions) Func() func(context.Context, time.Time) error {
 	}
 }
 
-func Time() *_TimeVldOptions {
-	return &_TimeVldOptions{}
+func Time() *_TimeVldBuilder {
+	return &_TimeVldBuilder{}
 }

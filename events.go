@@ -9,7 +9,7 @@ import (
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
-type EventListener func(at int64, evt any)
+type EventListener func(at int64, evtany any)
 
 type _ListenerEle struct {
 	wrapped EventListener

@@ -15,21 +15,21 @@ const (
 	intVldOptionsKeyForCustom
 )
 
-type _IntVldOptions[T internal.IntType] struct {
+type _IntVldBuilder[T internal.IntType] struct {
 	pairs []internal.Pair[intVldOptionsKey]
 }
 
-func (opts *_IntVldOptions[T]) MinValue(v T) *_IntVldOptions[T] {
+func (opts *_IntVldBuilder[T]) MinValue(v T) *_IntVldBuilder[T] {
 	opts.pairs = append(opts.pairs, internal.PairOf(intVldOptionsKeyForMinV, v))
 	return opts
 }
 
-func (opts *_IntVldOptions[T]) MaxValue(v T) *_IntVldOptions[T] {
+func (opts *_IntVldBuilder[T]) MaxValue(v T) *_IntVldBuilder[T] {
 	opts.pairs = append(opts.pairs, internal.PairOf(intVldOptionsKeyForMaxV, v))
 	return opts
 }
 
-func (opts *_IntVldOptions[T]) Custom(fnc func(context.Context, T) error) *_IntVldOptions[T] {
+func (opts *_IntVldBuilder[T]) Custom(fnc func(context.Context, T) error) *_IntVldBuilder[T] {
 	opts.pairs = append(opts.pairs, internal.PairOf(intVldOptionsKeyForCustom, fnc))
 	return opts
 }
@@ -40,7 +40,7 @@ var (
 	msgForCustomFunc    = internal.NewI18nString("fv.vld: custom function error(%s), %v")
 )
 
-func (opts *_IntVldOptions[T]) Func() func(context.Context, T) error {
+func (opts *_IntVldBuilder[T]) Func() func(context.Context, T) error {
 	var fncs []func(context.Context, T) error
 
 	var min, max T
@@ -110,6 +110,6 @@ func (opts *_IntVldOptions[T]) Func() func(context.Context, T) error {
 	}
 }
 
-func Integer[T internal.IntType]() *_IntVldOptions[T] {
-	return &_IntVldOptions[T]{}
+func Integer[T internal.IntType]() *_IntVldBuilder[T] {
+	return &_IntVldBuilder[T]{}
 }

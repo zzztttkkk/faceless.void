@@ -43,4 +43,8 @@ func TestBinding(t *testing.T) {
 
 	fmt.Println(bnd.Error(ctx))
 	fmt.Println(abv, ErrorKindBindingMissingRequired, ErrorKindBindingParseFailed)
+
+	var f1 func()
+
+	fmt.Println(reflect.ValueOf(f1).IsNil())
 }

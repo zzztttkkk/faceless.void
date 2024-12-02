@@ -2,9 +2,8 @@ package account
 
 import (
 	"context"
-	"encoding/json"
 	"hello/sitea/modules/internal"
-	"net/http"
+	"hello/sitea/modules/internal/evts"
 	"reflect"
 
 	fv "github.com/zzztttkkk/faceless.void"
@@ -38,11 +37,13 @@ type RegisterResult struct {
 }
 
 func Register(ctx context.Context, params *RegisterParams) (*RegisterResult, error) {
+	// skip logics
+	evts.EmitOnUserCreated(evts.EvtOnUserCreated{Uid: "0.0"})
 	return nil, nil
 }
 
 func init() {
-	internal.Delgates.Register.Set(func(ctx context.Context, email, pwd string) (string, error) {
+	internal.AccountDelegates.Register = func(ctx context.Context, email, pwd string) (string, error) {
 		var params RegisterParams
 		params.Email = email
 		params.Password = pwd
@@ -51,23 +52,5 @@ func init() {
 			return "", nil
 		}
 		return r.Id, nil
-	})
-
-	fv.Endpoint().
-		Func(
-			func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
-				var params RegisterParams
-				err := params.Binding(ctx)
-				if err != nil {
-					return err
-				}
-				result, err := Register(ctx, &params)
-				if err != nil {
-					return err
-				}
-				enc := json.NewEncoder(respw)
-				return enc.Encode(result)
-			},
-		).
-		Register()
+	}
 }
