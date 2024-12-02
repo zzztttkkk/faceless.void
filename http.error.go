@@ -18,6 +18,7 @@ type InternalError internal.Error
 const (
 	ErrorKindBindingMissingRequired = ErrorKind(iota + internal.MaxVldErrorKind + 1)
 	ErrorKindBindingParseFailed
+	ErrorKindBindingUnmarshalFailed
 
 	_MaxBindingErrorKind
 )

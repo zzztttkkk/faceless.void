@@ -57,20 +57,26 @@ func (opts *endpointBuilder) Output(vals ...any) *endpointBuilder {
 	return opts
 }
 
-func (opts *endpointBuilder) Func(fnc HttpHandlerFunc) {
+func (opts *endpointBuilder) Func(fnc HttpHandlerFunc) *endpointBuilder {
 	if opts.funced {
 		panic("endpoint already has handle function")
 	}
 	opts.funced = true
 	opts.pairs = append(opts.pairs, internal.PairOf("func", fnc))
+	return opts
 }
 
-func (opts *endpointBuilder) AnyFunc(fnc any) {
+func (opts *endpointBuilder) AnyFunc(fnc any) *endpointBuilder {
 	if opts.funced {
 		panic("endpoint already has handle function")
 	}
 	opts.funced = true
 	opts.pairs = append(opts.pairs, internal.PairOf("anyfunc", fnc))
+	return opts
+}
+
+func (opts *endpointBuilder) Register() {
+	registerHttpEndpoint(opts)
 }
 
 type IHttpMarshaler interface {
@@ -118,8 +124,7 @@ var (
 	anonymousFuncNameRegexp = regexp.MustCompile(`^func(\d+)$`)
 )
 
-func RegisterHttpEndpoint(opts *endpointBuilder) {
-
+func registerHttpEndpoint(opts *endpointBuilder) {
 	endpoint := httpEndpoint{}
 
 	var fnc HttpHandlerFunc

@@ -41,20 +41,21 @@ func Register(ctx context.Context, params *RegisterParams) (*RegisterResult, err
 }
 
 func init() {
-	fv.Endpoint().Func(func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
-		var params RegisterParams
-		err := params.Binding(ctx)
-		if err != nil {
-			return err
-		}
-
-		result, err := Register(ctx, &params)
-		if err != nil {
-			return err
-		}
-
-		enc := json.NewEncoder(respw)
-		enc.Encode(result)
-		return nil
-	})
+	fv.Endpoint().
+		Func(
+			func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
+				var params RegisterParams
+				err := params.Binding(ctx)
+				if err != nil {
+					return err
+				}
+				result, err := Register(ctx, &params)
+				if err != nil {
+					return err
+				}
+				enc := json.NewEncoder(respw)
+				return enc.Encode(result)
+			},
+		).
+		Register()
 }

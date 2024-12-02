@@ -1,7 +1,6 @@
 package fv
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -9,83 +8,63 @@ import (
 )
 
 type difnc struct {
-	deps      []reflect.Type
-	fnc       reflect.Value
-	done      bool
-	exectimes int
+	deps []reflect.Type
+	fnc  reflect.Value
+	done bool
 }
 
-type _DIContainer struct {
+type _DIContainer[T comparable] struct {
 	execed       bool
 	fncs         []*difnc
 	valpool      map[reflect.Type]reflect.Value
-	tokenvalpool map[reflect.Type]map[string]reflect.Value
+	tokenvalpool map[reflect.Type]map[T]reflect.Value
 }
 
 //goland:noinspection ALL
 type __fv_private_token_value__ interface {
-	__fv_private_token_value__() (string, reflect.Type, reflect.Value)
+	__fv_private_token_value__() (any, reflect.Type, reflect.Value)
 }
 
 var tokenValueInterfaceType = reflect.TypeOf((*__fv_private_token_value__)(nil)).Elem()
 
-type TokenValue[T any] struct {
-	token string
-	val   T
+type TokenValue[T comparable] struct {
+	token T
+	val   any
 }
 
-//goland:noinspection ALL
-func (tv TokenValue[T]) __fv_private_token_value__() (string, reflect.Type, reflect.Value) {
+func (tv TokenValue[T]) __fv_private_token_value__() (any, reflect.Type, reflect.Value) {
 	vv := reflect.ValueOf(tv.val)
 	return tv.token, vv.Type(), vv
 }
 
-func NewTokenValue[T any](token string, val T) TokenValue[T] {
+var (
+	_ __fv_private_token_value__ = TokenValue[int]{}
+)
+
+func ValueWithToken[T comparable](token T, val any) TokenValue[T] {
 	return TokenValue[T]{token: token, val: val}
 }
 
-//goland:noinspection ALL
-type __fv_private_token_value_getter__ interface {
-	__fv_private_token_value_getter_get_type__() reflect.Type
-}
-
-type Token[T any] struct {
-	typehint *T
-	Fnc      func(string, reflect.Type) any
-}
-
-var (
-	tokenValueGetterInterfaceType = reflect.TypeOf((*__fv_private_token_value_getter__)(nil)).Elem()
-)
-
-//goland:noinspection ALL
-func (g Token[T]) __fv_private_token_value_getter_get_type__() reflect.Type {
-	return reflect.TypeOf(g.typehint).Elem()
-}
-
-func (g Token[T]) Get(token string) T {
-	return g.Fnc(token, g.__fv_private_token_value_getter_get_type__()).(T)
-}
-
 //goland:noinspection GoExportedFuncWithUnexportedType
-func NewContainer() *_DIContainer {
-	return &_DIContainer{
+func NewContainer[T comparable]() *_DIContainer[T] {
+	return &_DIContainer[T]{
 		valpool:      make(map[reflect.Type]reflect.Value),
-		tokenvalpool: make(map[reflect.Type]map[string]reflect.Value),
+		tokenvalpool: make(map[reflect.Type]map[T]reflect.Value),
 	}
 }
 
-func (dic *_DIContainer) errorf(v string, args ...any) error {
+func (dic *_DIContainer[T]) errorf(v string, args ...any) error {
 	return internal.ErrNamespace{Namespace: "di"}.Errorf(v, args...)
 }
 
-func (dic *_DIContainer) appendone(v reflect.Value) {
+func (dic *_DIContainer[T]) appendone(v reflect.Value) {
 	var vtype reflect.Type
-	var tokenptr *string
-	if v.CanConvert(tokenValueInterfaceType) {
-		var token string
-		token, vtype, v = (v.Interface().(__fv_private_token_value__)).__fv_private_token_value__()
-		tokenptr = &token
+	var tokenptr *T
+	if v.Type().Implements(tokenValueInterfaceType) {
+		var anytoken any
+		anytoken, vtype, v = (v.Interface().(__fv_private_token_value__)).__fv_private_token_value__()
+		var token = anytoken.(T)
+		tokenptr = &(token)
 	} else {
 		vtype = v.Type()
 	}
@@ -93,7 +72,7 @@ func (dic *_DIContainer) appendone(v reflect.Value) {
 	if tokenptr != nil {
 		tvm := dic.tokenvalpool[vtype]
 		if tvm == nil {
-			tvm = make(map[string]reflect.Value)
+			tvm = make(map[T]reflect.Value)
 		}
 		_, ok := tvm[*tokenptr]
 		if ok {
@@ -111,8 +90,8 @@ func (dic *_DIContainer) appendone(v reflect.Value) {
 	dic.valpool[vtype] = v
 }
 
-func (dic *_DIContainer) append(v reflect.Value) {
-	if v.Kind() == reflect.Slice && v.Type().Elem().AssignableTo(tokenValueInterfaceType) {
+func (dic *_DIContainer[T]) append(v reflect.Value) {
+	if v.Kind() == reflect.Slice && v.Type().Elem().Implements(tokenValueInterfaceType) {
 		for i := 0; i < v.Len(); i++ {
 			dic.appendone(v.Index(i))
 		}
@@ -121,14 +100,14 @@ func (dic *_DIContainer) append(v reflect.Value) {
 	dic.appendone(v)
 }
 
-func (dic *_DIContainer) get(k reflect.Type) (reflect.Value, bool) {
+func (dic *_DIContainer[T]) get(k reflect.Type) (reflect.Value, bool) {
 	v, ok := dic.valpool[k]
 	return v, ok
 }
 
 type errTokenNotFound struct {
 	rtype reflect.Type
-	token string
+	token any
 }
 
 func (e *errTokenNotFound) Error() string {
@@ -138,11 +117,11 @@ func (e *errTokenNotFound) Error() string {
 var _ error = (*errTokenNotFound)(nil)
 
 func IsTokenNotFound(e error) bool {
-	var ev *errTokenNotFound
-	return errors.As(e, &ev)
+	_, ok := e.(*errTokenNotFound)
+	return ok
 }
 
-func (dic *_DIContainer) getbytoken(token string, k reflect.Type) reflect.Value {
+func (dic *_DIContainer[T]) getbytoken(token T, k reflect.Type) reflect.Value {
 	tvm, ok := dic.tokenvalpool[k]
 	if !ok {
 		panic(&errTokenNotFound{token: token, rtype: k})
@@ -154,27 +133,7 @@ func (dic *_DIContainer) getbytoken(token string, k reflect.Type) reflect.Value 
 	return v
 }
 
-func (dic *_DIContainer) Prepare(fnc any) *_DIContainer {
-	rv := reflect.ValueOf(fnc)
-	if rv.IsNil() || rv.Kind() != reflect.Func {
-		panic(dic.errorf("`%s` is not a function", fnc))
-	}
-
-	if rv.Type().NumIn() != 0 {
-		panic(dic.errorf("`%s` can not require arguments", fnc))
-	}
-
-	if rv.Type().NumOut() < 1 {
-		panic(dic.errorf("`%s` has no return value", fnc))
-	}
-
-	for _, v := range rv.Call(nil) {
-		dic.append(v)
-	}
-	return dic
-}
-
-func (dic *_DIContainer) Register(fnc any) *_DIContainer {
+func (dic *_DIContainer[T]) Register(fnc any) *_DIContainer[T] {
 	rv := reflect.ValueOf(fnc)
 	if rv.IsNil() || rv.Kind() != reflect.Func {
 		panic(dic.errorf("`%s` is not a function", fnc))
@@ -189,7 +148,15 @@ func (dic *_DIContainer) Register(fnc any) *_DIContainer {
 	return dic
 }
 
-func (dic *_DIContainer) Run() {
+func (dic *_DIContainer[T]) GetByToken(dest any, token T) *_DIContainer[T] {
+	dv := reflect.ValueOf(dest)
+	dt := dv.Type().Elem()
+	val := dic.getbytoken(token, dt)
+	dv.Elem().Set(val)
+	return dic
+}
+
+func (dic *_DIContainer[T]) Run() {
 	if dic.execed {
 		panic(dic.errorf("container already executed"))
 	}
@@ -209,26 +176,17 @@ func (dic *_DIContainer) Run() {
 		}
 
 		donecount := 0
+		var lastTokenMissingErr *errTokenNotFound
+		var lastTokenMissingFunc reflect.Value
 		for _, ele := range remains {
-			ele.exectimes++
-
 			var args []reflect.Value
 			for _, argtype := range ele.deps {
 				var av reflect.Value
-				if argtype.AssignableTo(tokenValueGetterInterfaceType) {
-					getter := reflect.New(argtype).Elem()
-					getter.FieldByName("Fnc").Set(reflect.ValueOf(func(s string, r reflect.Type) any {
-						return dic.getbytoken(s, r).Interface()
-					}))
-					av = getter
-				} else {
-					var ok bool
-					av, ok = dic.get(argtype)
-					if !ok {
-						break
-					}
+				var ok bool
+				av, ok = dic.get(argtype)
+				if !ok {
+					break
 				}
-
 				args = append(args, av)
 			}
 
@@ -242,6 +200,8 @@ func (dic *_DIContainer) Run() {
 					if a && IsTokenNotFound(e) {
 						ok = false
 						rvs = nil
+						lastTokenMissingErr = e.(*errTokenNotFound)
+						lastTokenMissingFunc = ele.fnc
 						return
 					}
 					panic(rv)
@@ -263,7 +223,17 @@ func (dic *_DIContainer) Run() {
 		}
 
 		if donecount < 1 {
-			panic(dic.errorf("can not resolve dependencies"))
+			// TODO
+			if lastTokenMissingErr != nil {
+				fmt.Println(lastTokenMissingErr.Error(), lastTokenMissingFunc)
+			}
+			for _, ele := range remains {
+				if ele.done || ele.fnc == lastTokenMissingFunc {
+					continue
+				}
+				fmt.Println(ele.fnc)
+			}
+			panic(fmt.Errorf("fv.dic: can not resolve dependencies"))
 		}
 	}
 }
