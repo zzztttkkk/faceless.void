@@ -14,7 +14,7 @@ type _BindingAnyField struct {
 	ptr         any
 	optional    bool
 	unmarshaler func([]byte, any) error
-	validator   func(context.Context, any) error
+	validator   func(context.Context) error
 }
 
 func (ins *_BindingInstance) Any(ptr any) *_BindingAnyField {
@@ -35,7 +35,7 @@ func (af *_BindingAnyField) Unmarshal(fnc func([]byte, any) error) *_BindingAnyF
 	return af
 }
 
-func (af *_BindingAnyField) Validate(fnc func(context.Context, any) error) *_BindingAnyField {
+func (af *_BindingAnyField) Validate(fnc func(ctx context.Context) error) *_BindingAnyField {
 	af.validator = fnc
 	return af
 }
@@ -67,5 +67,5 @@ func (af *_BindingAnyField) do(ctx context.Context) error {
 	if af.validator == nil {
 		return nil
 	}
-	return af.validator(ctx, af.ptr)
+	return af.validator(ctx)
 }

@@ -6,4 +6,5 @@ const (
 	CtxKeyForHttpRequest = ctxKeyType(iota)
 	CtxKeyForBindingGetter
 	CtxKeyForLanguageKind
+	CtxKeyForSqlTx
 )
