@@ -4,21 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"unsafe"
+	"reflect"
 
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
-type _BindingAnyField[T any] struct {
+type _BindingAnyField struct {
 	ins         *_BindingInstance
-	ptr         *T
+	ptr         any
 	optional    bool
-	unmarshaler func([]byte, *T) error
-	validator   func(context.Context, *T) error
+	unmarshaler func([]byte, any) error
+	validator   func(context.Context, any) error
 }
 
-func AnyField[T any](ins *_BindingInstance, ptr *T) *_BindingAnyField[T] {
-	af := &_BindingAnyField[T]{
+func (ins *_BindingInstance) Any(ptr any) *_BindingAnyField {
+	af := &_BindingAnyField{
 		ins: ins,
 		ptr: ptr,
 	}
@@ -26,16 +26,16 @@ func AnyField[T any](ins *_BindingInstance, ptr *T) *_BindingAnyField[T] {
 	return af
 }
 
-func (af *_BindingAnyField[T]) Optional() *_BindingAnyField[T] {
+func (af *_BindingAnyField) Optional() *_BindingAnyField {
 	af.optional = true
 	return af
 }
-func (af *_BindingAnyField[T]) Unmarshal(fnc func([]byte, *T) error) *_BindingAnyField[T] {
+func (af *_BindingAnyField) Unmarshal(fnc func([]byte, any) error) *_BindingAnyField {
 	af.unmarshaler = fnc
 	return af
 }
 
-func (af *_BindingAnyField[T]) Validate(fnc func(context.Context, *T) error) *_BindingAnyField[T] {
+func (af *_BindingAnyField) Validate(fnc func(context.Context, any) error) *_BindingAnyField {
 	af.validator = fnc
 	return af
 }
@@ -44,7 +44,7 @@ var (
 	msgForBindingUnmarshalFailed = internal.NewI18nString("fv.binding: unmarshal failed, %s, %s")
 )
 
-func (af *_BindingAnyField[T]) do(ctx context.Context) error {
+func (af *_BindingAnyField) do(ctx context.Context) error {
 	req := HttpRequest(ctx)
 	defer req.Body.Close()
 	payload, err := io.ReadAll(req.Body)
@@ -52,7 +52,7 @@ func (af *_BindingAnyField[T]) do(ctx context.Context) error {
 		if af.optional {
 			return nil
 		}
-		name := af.ins.nameof(unsafe.Pointer(af.ptr))
+		name := af.ins.nameof(reflect.ValueOf(af.ptr).UnsafePointer())
 		return internal.NewError(ctx, internal.ErrorKind(ErrorKindBindingMissingRequired), msgForBindingMissingRequired, name)
 	}
 	if af.unmarshaler == nil {
@@ -61,7 +61,7 @@ func (af *_BindingAnyField[T]) do(ctx context.Context) error {
 		err = af.unmarshaler(payload, af.ptr)
 	}
 	if err != nil {
-		name := af.ins.nameof(unsafe.Pointer(af.ptr))
+		name := af.ins.nameof(reflect.ValueOf(af.ptr).UnsafePointer())
 		return internal.NewError(ctx, internal.ErrorKind(ErrorKindBindingUnmarshalFailed), msgForBindingUnmarshalFailed, name, err)
 	}
 	if af.validator == nil {

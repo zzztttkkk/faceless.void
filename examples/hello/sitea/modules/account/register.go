@@ -14,6 +14,10 @@ type RegisterParams struct {
 	Name     string
 	Email    string
 	Password string
+	ExtInfo  struct {
+		A string `json:"a"`
+		B string `json:"b"`
+	}
 }
 
 func init() {
@@ -26,6 +30,7 @@ func (params *RegisterParams) Binding(ctx context.Context) error {
 	bnd.String(&params.Email).Validate(vld.Strings.Email().Func())
 	bnd.String(&params.Name)
 	bnd.String(&params.Password)
+	bnd.Any(&params.ExtInfo)
 	return bnd.Error(ctx)
 }
 
