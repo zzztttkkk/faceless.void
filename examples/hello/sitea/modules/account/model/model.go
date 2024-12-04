@@ -1,8 +1,6 @@
 package accountmodel
 
-import (
-	"github.com/zzztttkkk/faceless.void/sqlx"
-)
+import "github.com/zzztttkkk/faceless.void/sqlx"
 
 type UserModel struct {
 	Id   sqlx.Field[int64, idmeta]

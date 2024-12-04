@@ -1,6 +1,9 @@
 package sqlx
 
-import "database/sql"
+import (
+	"database/sql"
+	"encoding/json"
+)
 
 type TableMetaInfo struct {
 	Name string
@@ -37,6 +40,14 @@ func (field *Field[T, M]) Ptr() *T {
 
 func (field *Field[T, M]) Metainfo() *FieldMetaInfo {
 	return nil
+}
+
+func (field *Field[T, M]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(field.Value)
+}
+
+func (field *Field[T, M]) UnmarshalJSON(bs []byte) error {
+	return json.Unmarshal(bs, &field.Value)
 }
 
 type opKind int
