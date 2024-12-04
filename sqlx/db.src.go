@@ -1,4 +1,4 @@
-package fv
+package sqlx
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
-type _DBSource struct {
+type _Source struct {
 	main *sql.DB
 	subs []*sql.DB
 }
 
-var dbsource *_DBSource
+var dbsource *_Source
 
-type SqlExecutor interface {
+type Executor interface {
 	Exec(ctx context.Context, query string, args ...any) (sql.Result, error)
 	Query(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
@@ -31,19 +31,19 @@ func (v _txptr) Query(ctx context.Context, query string, args ...any) (*sql.Rows
 	return v.ptr.QueryContext(ctx, query, args...)
 }
 
-var _ SqlExecutor = _txptr{}
+var _ Executor = _txptr{}
 
-func WithTx(ctx context.Context) (context.Context, SqlExecutor) {
+func WithTx(ctx context.Context) (context.Context, Executor) {
 	return withTxOptions(ctx, nil)
 }
 
-func WithReadonlyTx(ctx context.Context) (context.Context, SqlExecutor) {
+func WithReadonlyTx(ctx context.Context) (context.Context, Executor) {
 	var opts sql.TxOptions
 	opts.ReadOnly = true
 	return withTxOptions(ctx, &opts)
 }
 
-func withTxOptions(ctx context.Context, opts *sql.TxOptions) (context.Context, SqlExecutor) {
+func withTxOptions(ctx context.Context, opts *sql.TxOptions) (context.Context, Executor) {
 	txa := ctx.Value(internal.CtxKeyForSqlTx)
 	if txa != nil {
 		return ctx, txa.(_txptr)
@@ -61,3 +61,4 @@ func withTxOptions(ctx context.Context, opts *sql.TxOptions) (context.Context, S
 	val := _txptr{tx}
 	return context.WithValue(ctx, internal.CtxKeyForSqlTx, val), val
 }
+
