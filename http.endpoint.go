@@ -111,9 +111,7 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	var bh _Getter
 	ctx := context.WithValue(req.Context(), internal.CtxKeyForHttpRequest, req)
-	ctx = bh.init(ctx, req)
 	err := endpoint.handler(ctx, req, rw)
 
 	if err != nil {
@@ -236,10 +234,6 @@ func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) HttpH
 			continue
 		}
 
-		if !argT.Implements(iBindingType) {
-			panic(fmt.Errorf("`function %s`'s param type is not a fv.IBinding, at %d", funcname, i))
-		}
-
 		isptr := false
 		if argT.Kind() == reflect.Pointer {
 			argT = argT.Elem()
@@ -250,19 +244,19 @@ func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) HttpH
 		if isptr {
 			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				err := ptrv.Interface().(IBinding).Binding(ctx)
-				if err != nil {
-					return reflect.Value{}, err
-				}
+				// err := ptrv.Interface().(IBinding).Binding(ctx)
+				// if err != nil {
+				// 	return reflect.Value{}, err
+				// }
 				return ptrv, nil
 			})
 		} else {
 			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
 				ptrv := reflect.New(argT)
-				err := ptrv.Interface().(IBinding).Binding(ctx)
-				if err != nil {
-					return reflect.Value{}, err
-				}
+				// err := ptrv.Interface().(IBinding).Binding(ctx)
+				// if err != nil {
+				// 	return reflect.Value{}, err
+				// }
 				return ptrv.Elem(), nil
 			})
 		}

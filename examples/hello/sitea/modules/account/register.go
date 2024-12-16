@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	fv "github.com/zzztttkkk/faceless.void"
-	"github.com/zzztttkkk/faceless.void/vld"
 )
 
 type RegisterParams struct {
@@ -23,18 +22,6 @@ type RegisterParams struct {
 func init() {
 	fv.RegisterTypes(reflect.TypeOf(RegisterParams{}))
 }
-
-// Binding implements fv.IBinding.
-func (params *RegisterParams) Binding(ctx context.Context) error {
-	bnd := fv.Binding(params)
-	bnd.String(&params.Email).Validate(vld.Strings.Email().Func())
-	bnd.String(&params.Name)
-	bnd.String(&params.Password)
-	bnd.Any(&params.ExtInfo)
-	return bnd.Error(ctx)
-}
-
-var _ fv.IBinding = (*RegisterParams)(nil)
 
 type RegisterResult struct {
 	Id   string

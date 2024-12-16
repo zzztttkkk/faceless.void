@@ -34,7 +34,7 @@ type _EventBusBuilder struct {
 	pairs []internal.Pair[string]
 }
 
-func EventBusBuilder() *_EventBusBuilder {
+func EventBus() *_EventBusBuilder {
 	return &_EventBusBuilder{}
 }
 

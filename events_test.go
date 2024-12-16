@@ -17,7 +17,7 @@ func TestEvt(t *testing.T) {
 
 	typeofAAA := reflect.TypeOf(AAA{})
 
-	bus := fv.EventBusBuilder().Workers(1).OnPanic(func(err any, at int64, evttype any, evt any) {
+	bus := fv.EventBus().Workers(1).OnPanic(func(err any, at int64, evttype any, evt any) {
 		switch evttype {
 		case typeofAAA:
 			{
@@ -26,12 +26,11 @@ func TestEvt(t *testing.T) {
 			}
 		}
 		fmt.Println("Panic: ", err, at, evttype, evt)
-	}).Build()
-
-	bus.AddListener(typeofAAA, func(at int64, evtany any) {
-		evt := (evtany).(*AAA)
-		fmt.Println(evt, at)
-	})
+	}).Build().
+		AddListener(typeofAAA, func(at int64, evtany any) {
+			evt := (evtany).(*AAA)
+			fmt.Println(evt, at)
+		})
 
 	evt := AAA{A: "yyy", B: 34}
 	bus.Emit(typeofAAA, &evt)
