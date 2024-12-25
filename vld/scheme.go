@@ -1,4 +1,4 @@
-package internalvld
+package vld
 
 import (
 	"database/sql"
@@ -27,6 +27,7 @@ type VldFieldMeta struct {
 
 	// uint
 	MaxUint    sql.Null[uint64]
+	MinUint    sql.Null[uint64]
 	UintRanges []uint64
 
 	// time
@@ -87,11 +88,7 @@ func (scheme *_Scheme) Finish() {
 	}
 }
 
-type inttypes interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
-}
-
-func makeIntVld[T inttypes](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (func(uptr unsafe.Pointer) error, func(val any) error) {
+func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (func(uptr unsafe.Pointer) error, func(val any) error) {
 	if meta == nil {
 		meta = field.Metainfo()
 	}
@@ -133,7 +130,7 @@ func makeIntVld[T inttypes](field *lion.Field[VldFieldMeta], meta *VldFieldMeta)
 		func(val any) error { return do(val.(T)) }
 }
 
-func makeUintVld[T inttypes](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (func(uptr unsafe.Pointer) error, func(val any) error) {
+func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (func(uptr unsafe.Pointer) error, func(val any) error) {
 	if meta == nil {
 		meta = field.Metainfo()
 	}
@@ -142,7 +139,16 @@ func makeUintVld[T inttypes](field *lion.Field[VldFieldMeta], meta *VldFieldMeta
 		maxv := T(meta.MaxUint.V)
 		fncs = append(fncs, func(iv T) error {
 			if iv > maxv {
-				return fmt.Errorf("int gt max")
+				return fmt.Errorf("uint gt max")
+			}
+			return nil
+		})
+	}
+	if meta.MinUint.Valid {
+		minv := T(meta.MinUint.V)
+		fncs = append(fncs, func(iv T) error {
+			if iv < minv {
+				return fmt.Errorf("uint lt min")
 			}
 			return nil
 		})
@@ -171,6 +177,15 @@ func makeUintVld[T inttypes](field *lion.Field[VldFieldMeta], meta *VldFieldMeta
 }
 
 func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (func(uptr unsafe.Pointer) error, func(val any) error) {
+	EnsureSimpleContainer := func() {
+		switch gotype.Elem().Kind() {
+		case reflect.Array, reflect.Slice, reflect.Map:
+			{
+				panic(fmt.Errorf("fv.vld: nested container is not supported, %s", gotype))
+			}
+		}
+	}
+
 	_rawmeta := meta
 	if meta == nil {
 		meta = field.Metainfo()
@@ -283,6 +298,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 		}
 	case reflect.Slice, reflect.Array:
 		{
+			EnsureSimpleContainer()
 			var slicefncs = []func(sv reflect.Value) error{}
 			if gotype.Kind() == reflect.Slice {
 				if meta.MaxSize.Valid {
@@ -317,6 +333,9 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					return nil
 				})
 			}
+			if meta.Func != nil {
+				slicefncs = append(slicefncs, func(sv reflect.Value) error { return meta.Func(sv.Interface()) })
+			}
 			if len(slicefncs) < 1 {
 				return nil, nil
 			}
@@ -339,6 +358,8 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 		}
 	case reflect.Map:
 		{
+			EnsureSimpleContainer()
+
 			var mapfncs = []func(sv reflect.Value) error{}
 			if meta.MaxSize.Valid {
 				maxs := meta.MaxSize.V
@@ -357,9 +378,6 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					}
 					return nil
 				})
-			}
-			if gotype.Elem().Kind() == reflect.Map {
-				panic(fmt.Errorf("unsupported nested map"))
 			}
 			_, eleanyfnc := makeVldFunction(field, _rawmeta, gotype.Elem())
 			var keyanyfnc func(val any) error
@@ -431,6 +449,9 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 		}
 	case reflect.Pointer:
 		{
+			if gotype.Elem().Kind() == reflect.Pointer {
+				panic(fmt.Errorf("fv.vld: nested pointer is not supported"))
+			}
 			_, anyfnc := makeVldFunction(field, _rawmeta, gotype.Elem())
 			if anyfnc == nil {
 				return nil, nil

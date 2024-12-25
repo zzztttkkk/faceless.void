@@ -1,4 +1,4 @@
-package internalvld
+package vld
 
 type ErrorKind int
 
