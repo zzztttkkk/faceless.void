@@ -28,8 +28,8 @@ func (builder *commonBuilder[T, S]) Optional() *S {
 	return builder.self()
 }
 
-func (builder *commonBuilder[T, S]) Func(fnc func(v any) error) *S {
-	builder.pairs = append(builder.pairs, internal.PairOf("func", fnc))
+func (builder *commonBuilder[T, S]) Func(fnc func(ctx context.Context, v T) error) *S {
+	builder.pairs = append(builder.pairs, internal.PairOf("func", func(ctx context.Context, val any) error { return fnc(ctx, val.(T)) }))
 	return builder.self()
 }
 

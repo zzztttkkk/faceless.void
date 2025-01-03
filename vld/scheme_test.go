@@ -36,9 +36,9 @@ func init() {
 	scheme.
 		Field(&model.B, vld.String().NoEmpty().Build()).
 		Field(&model.C, &vld.VldFieldMeta{MinLength: sql.Null[int]{V: 1, Valid: true}, Optional: true}).
-		Field(&model.D, &vld.VldFieldMeta{Regexp: regexp.MustCompile(`^\d+$`), MapKey: &vld.VldFieldMeta{MinInt: sql.Null[int64]{V: 12, Valid: true}}})
+		Field(&model.D, &vld.VldFieldMeta{Regexp: regexp.MustCompile(`^\d+$`), Key: &vld.VldFieldMeta{MinInt: sql.Null[int64]{V: 12, Valid: true}}})
 
-	vld.IntPtr(&model.A).Min(1).Max(23).Finish(scheme)
+	vld.Int(&model.A).Min(1).Max(23).Finish(scheme)
 }
 
 func TestVld(t *testing.T) {

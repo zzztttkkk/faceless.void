@@ -29,10 +29,10 @@ func (builder *intBuilder[T]) Max(maxv T) *intBuilder[T] {
 	return builder
 }
 
-func Int[T lion.IntType]() *intBuilder[T] {
+func IntMeta[T lion.IntType]() *intBuilder[T] {
 	return (&intBuilder[T]{unsigned: lion.IsUnsignedInt[T]()})
 }
 
-func IntPtr[T lion.IntType](ptr *T) *intBuilder[T] {
-	return Int[T]().updateptr(ptr)
+func Int[T lion.IntType](ptr *T) *intBuilder[T] {
+	return IntMeta[T]().updateptr(ptr)
 }

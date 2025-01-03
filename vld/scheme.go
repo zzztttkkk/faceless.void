@@ -38,7 +38,8 @@ type VldFieldMeta struct {
 	// slice/map
 	MaxSize sql.Null[int]
 	MinSize sql.Null[int]
-	MapKey  *VldFieldMeta
+	Key     *VldFieldMeta
+	Ele     *VldFieldMeta
 
 	// custom
 	Func func(ctx context.Context, v any) error
@@ -316,7 +317,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					})
 				}
 			}
-			_, eleanyfnc := makeVldFunction(field, _rawmeta, gotype.Elem())
+			_, eleanyfnc := makeVldFunction(field, meta.Ele, gotype.Elem())
 			if eleanyfnc != nil {
 				slicefncs = append(slicefncs, func(ctx context.Context, sv reflect.Value) error {
 					slen := sv.Len()
@@ -372,10 +373,10 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					return nil
 				})
 			}
-			_, elevld := makeVldFunction(field, _rawmeta, gotype.Elem())
+			_, elevld := makeVldFunction(field, _rawmeta.Ele, gotype.Elem())
 			var keyvld _ValVldFunc
-			if meta.MapKey != nil {
-				_, keyvld = makeVldFunction(field, meta.MapKey, gotype.Key())
+			if meta.Key != nil {
+				_, keyvld = makeVldFunction(field, meta.Key, gotype.Key())
 			}
 			if elevld != nil {
 				if keyvld != nil {
