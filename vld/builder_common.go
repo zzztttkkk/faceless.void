@@ -1,6 +1,7 @@
 package vld
 
 import (
+	"context"
 	"database/sql"
 	"regexp"
 	"unsafe"
@@ -39,8 +40,7 @@ func (builder *commonBuilder[T, S]) Build() *VldFieldMeta {
 		case "optional":
 			obj.Optional = true
 		case "func":
-			obj.Func = pair.Val.(func(v any) error)
-
+			obj.Func = pair.Val.(func(ctx context.Context, v any) error)
 		case "regexp":
 			obj.Regexp = pair.Val.(*regexp.Regexp)
 		case "minl":

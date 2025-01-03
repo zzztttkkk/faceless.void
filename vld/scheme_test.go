@@ -1,6 +1,7 @@
 package vld_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -37,15 +38,14 @@ func init() {
 		Field(&model.C, &vld.VldFieldMeta{MinLength: sql.Null[int]{V: 1, Valid: true}, Optional: true}).
 		Field(&model.D, &vld.VldFieldMeta{Regexp: regexp.MustCompile(`^\d+$`), MapKey: &vld.VldFieldMeta{MinInt: sql.Null[int64]{V: 12, Valid: true}}})
 
-	vld.IntWithPtr(&model.A).Min(1).Max(23).Finish(scheme)
+	vld.IntPtr(&model.A).Min(1).Max(23).Finish(scheme)
 }
 
 func TestVld(t *testing.T) {
 	var params Params
-
 	params.D = map[int64]string{
 		12: "3444r",
 	}
-	err := vld.Vld(&params)
+	err := vld.Vld(context.Background(), &params)
 	fmt.Println(err)
 }

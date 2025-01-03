@@ -33,6 +33,6 @@ func Int[T lion.IntType]() *intBuilder[T] {
 	return (&intBuilder[T]{unsigned: lion.IsUnsignedInt[T]()})
 }
 
-func IntWithPtr[T lion.IntType](ptr *T) *intBuilder[T] {
+func IntPtr[T lion.IntType](ptr *T) *intBuilder[T] {
 	return Int[T]().updateptr(ptr)
 }

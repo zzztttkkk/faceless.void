@@ -1,6 +1,7 @@
 package vld
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"reflect"
@@ -40,7 +41,7 @@ type VldFieldMeta struct {
 	MapKey  *VldFieldMeta
 
 	// custom
-	Func func(v any) error
+	Func func(ctx context.Context, v any) error
 }
 
 func init() {
@@ -49,7 +50,7 @@ func init() {
 
 type _Scheme struct {
 	typeinfo *lion.TypeInfo[VldFieldMeta]
-	vlds     []func(ptr unsafe.Pointer) error
+	vlds     []_PtrVldFunc
 }
 
 var (
@@ -88,7 +89,10 @@ func (scheme *_Scheme) Finish() {
 	}
 }
 
-func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (func(uptr unsafe.Pointer) error, func(val any) error) {
+type _PtrVldFunc = func(ctx context.Context, ptr unsafe.Pointer) error
+type _ValVldFunc = func(ctx context.Context, val any) error
+
+func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta == nil {
 		meta = field.Metainfo()
 	}
@@ -111,26 +115,25 @@ func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFiel
 			return nil
 		})
 	}
-	if meta.Func != nil {
-		fncs = append(fncs, func(iv T) error { return meta.Func(iv) })
-	}
-	if len(fncs) < 1 {
-		return nil, nil
-	}
 
-	do := func(iv T) error {
+	do := func(ctx context.Context, iv T) error {
 		for _, fn := range fncs {
 			if err := fn(iv); err != nil {
 				return err
 			}
 		}
+		if meta.Func != nil {
+			return meta.Func(ctx, iv)
+		}
 		return nil
 	}
-	return func(uptr unsafe.Pointer) error { return do(*((*T)(unsafe.Add(uptr, field.Offset())))) },
-		func(val any) error { return do(val.(T)) }
+	return func(ctx context.Context, uptr unsafe.Pointer) error {
+			return do(ctx, *((*T)(unsafe.Add(uptr, field.Offset()))))
+		},
+		func(ctx context.Context, val any) error { return do(ctx, val.(T)) }
 }
 
-func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (func(uptr unsafe.Pointer) error, func(val any) error) {
+func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta == nil {
 		meta = field.Metainfo()
 	}
@@ -153,30 +156,26 @@ func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldF
 			return nil
 		})
 	}
-	if meta.Func != nil {
-		fncs = append(fncs, func(iv T) error { return meta.Func(iv) })
-	}
-	if len(fncs) < 1 {
-		return nil, nil
-	}
-
-	do := func(iv T) error {
+	do := func(ctx context.Context, iv T) error {
 		for _, fn := range fncs {
 			if err := fn(iv); err != nil {
 				return err
 			}
 		}
+		if meta.Func != nil {
+			return meta.Func(ctx, iv)
+		}
 		return nil
 	}
-	return func(uptr unsafe.Pointer) error {
+	return func(ctx context.Context, uptr unsafe.Pointer) error {
 			iv := *((*T)(unsafe.Add(uptr, field.Offset())))
-			return do(iv)
-		}, func(val any) error {
-			return do(val.(T))
+			return do(ctx, iv)
+		}, func(ctx context.Context, val any) error {
+			return do(ctx, val.(T))
 		}
 }
 
-func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (func(uptr unsafe.Pointer) error, func(val any) error) {
+func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (func(ctx context.Context, uptr unsafe.Pointer) error, func(ctx context.Context, val any) error) {
 	EnsureSimpleContainer := func() {
 		switch gotype.Elem().Kind() {
 		case reflect.Array, reflect.Slice, reflect.Map:
@@ -246,26 +245,23 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					})
 				}
 			}
-			if meta.Func != nil {
-				fncs = append(fncs, func(v string) error { return meta.Func(v) })
-			}
-			if len(fncs) < 1 {
-				return nil, nil
-			}
 
-			do := func(fv string) error {
+			do := func(ctx context.Context, fv string) error {
 				for _, fn := range fncs {
 					if err := fn(fv); err != nil {
 						return err
 					}
 				}
+				if meta.Func != nil {
+					return meta.Func(ctx, fv)
+				}
 				return nil
 			}
-			return func(uptr unsafe.Pointer) error {
+			return func(ctx context.Context, uptr unsafe.Pointer) error {
 					fv := *((*string)(unsafe.Add(uptr, field.Offset())))
-					return do(fv)
-				}, func(val any) error {
-					return do(val.(string))
+					return do(ctx, fv)
+				}, func(ctx context.Context, val any) error {
+					return do(ctx, val.(string))
 				}
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -299,11 +295,11 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 	case reflect.Slice, reflect.Array:
 		{
 			EnsureSimpleContainer()
-			var slicefncs = []func(sv reflect.Value) error{}
+			var slicefncs = []func(ctx context.Context, sv reflect.Value) error{}
 			if gotype.Kind() == reflect.Slice {
 				if meta.MaxSize.Valid {
 					maxs := meta.MaxSize.V
-					slicefncs = append(slicefncs, func(sv reflect.Value) error {
+					slicefncs = append(slicefncs, func(ctx context.Context, sv reflect.Value) error {
 						if sv.Len() > maxs {
 							return fmt.Errorf("slice too long")
 						}
@@ -312,7 +308,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 				}
 				if meta.MinSize.Valid {
 					mins := meta.MinSize.V
-					slicefncs = append(slicefncs, func(sv reflect.Value) error {
+					slicefncs = append(slicefncs, func(ctx context.Context, sv reflect.Value) error {
 						if sv.Len() < mins {
 							return fmt.Errorf("slice too short")
 						}
@@ -322,24 +318,18 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			}
 			_, eleanyfnc := makeVldFunction(field, _rawmeta, gotype.Elem())
 			if eleanyfnc != nil {
-				slicefncs = append(slicefncs, func(sv reflect.Value) error {
+				slicefncs = append(slicefncs, func(ctx context.Context, sv reflect.Value) error {
 					slen := sv.Len()
 					for i := 0; i < slen; i++ {
 						elev := sv.Index(i)
-						if ee := eleanyfnc(elev.Interface()); ee != nil {
+						if ee := eleanyfnc(ctx, elev.Interface()); ee != nil {
 							return ee
 						}
 					}
 					return nil
 				})
 			}
-			if meta.Func != nil {
-				slicefncs = append(slicefncs, func(sv reflect.Value) error { return meta.Func(sv.Interface()) })
-			}
-			if len(slicefncs) < 1 {
-				return nil, nil
-			}
-			do := func(sv reflect.Value) error {
+			do := func(ctx context.Context, sv reflect.Value) error {
 				if !sv.IsValid() || sv.IsNil() {
 					if meta.Optional {
 						return nil
@@ -347,23 +337,26 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					return fmt.Errorf("missing required")
 				}
 				for _, fn := range slicefncs {
-					if err := fn(sv); err != nil {
+					if err := fn(ctx, sv); err != nil {
 						return err
 					}
 				}
+				if meta.Func != nil {
+					return meta.Func(ctx, sv.Interface())
+				}
 				return nil
 			}
-			return func(uptr unsafe.Pointer) error { return do(reflect.ValueOf(getter(uptr))) },
-				func(val any) error { return do(reflect.ValueOf(val)) }
+			return func(ctx context.Context, uptr unsafe.Pointer) error { return do(ctx, reflect.ValueOf(getter(uptr))) },
+				func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }
 		}
 	case reflect.Map:
 		{
 			EnsureSimpleContainer()
 
-			var mapfncs = []func(sv reflect.Value) error{}
+			var mapfncs = []func(ctx context.Context, sv reflect.Value) error{}
 			if meta.MaxSize.Valid {
 				maxs := meta.MaxSize.V
-				mapfncs = append(mapfncs, func(sv reflect.Value) error {
+				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
 					if sv.Len() > maxs {
 						return fmt.Errorf("map too long")
 					}
@@ -372,40 +365,40 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			}
 			if meta.MinSize.Valid {
 				mins := meta.MinSize.V
-				mapfncs = append(mapfncs, func(sv reflect.Value) error {
+				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
 					if sv.Len() < mins {
 						return fmt.Errorf("map too short")
 					}
 					return nil
 				})
 			}
-			_, eleanyfnc := makeVldFunction(field, _rawmeta, gotype.Elem())
-			var keyanyfnc func(val any) error
+			_, elevld := makeVldFunction(field, _rawmeta, gotype.Elem())
+			var keyvld _ValVldFunc
 			if meta.MapKey != nil {
-				_, keyanyfnc = makeVldFunction(field, meta.MapKey, gotype.Key())
+				_, keyvld = makeVldFunction(field, meta.MapKey, gotype.Key())
 			}
-			if eleanyfnc != nil {
-				if keyanyfnc != nil {
-					mapfncs = append(mapfncs, func(sv reflect.Value) error {
+			if elevld != nil {
+				if keyvld != nil {
+					mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
 						iter := sv.MapRange()
 						for iter.Next() {
 							key := iter.Key()
-							if ke := keyanyfnc(key.Interface()); ke != nil {
+							if ke := keyvld(ctx, key.Interface()); ke != nil {
 								return ke
 							}
 							val := iter.Value()
-							if ve := eleanyfnc(val.Interface()); ve != nil {
+							if ve := elevld(ctx, val.Interface()); ve != nil {
 								return ve
 							}
 						}
 						return nil
 					})
 				} else {
-					mapfncs = append(mapfncs, func(sv reflect.Value) error {
+					mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
 						iter := sv.MapRange()
 						for iter.Next() {
 							val := iter.Value()
-							if ve := eleanyfnc(val.Interface()); ve != nil {
+							if ve := elevld(ctx, val.Interface()); ve != nil {
 								return ve
 							}
 						}
@@ -413,12 +406,12 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					})
 				}
 			} else {
-				if keyanyfnc != nil {
-					mapfncs = append(mapfncs, func(sv reflect.Value) error {
+				if keyvld != nil {
+					mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
 						iter := sv.MapRange()
 						for iter.Next() {
 							key := iter.Key()
-							if ke := keyanyfnc(key.Interface()); ke != nil {
+							if ke := keyvld(ctx, key.Interface()); ke != nil {
 								return ke
 							}
 						}
@@ -426,11 +419,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					})
 				}
 			}
-
-			if len(mapfncs) < 1 {
-				return nil, nil
-			}
-			do := func(mapv reflect.Value) error {
+			do := func(ctx context.Context, mapv reflect.Value) error {
 				if !mapv.IsValid() || mapv.IsNil() {
 					if meta.Optional {
 						return nil
@@ -438,14 +427,17 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					return fmt.Errorf("missing required")
 				}
 				for _, fnc := range mapfncs {
-					if err := fnc(mapv); err != nil {
+					if err := fnc(ctx, mapv); err != nil {
 						return err
 					}
 				}
+				if meta.Func != nil {
+					return meta.Func(ctx, mapv.Interface())
+				}
 				return nil
 			}
-			return func(uptr unsafe.Pointer) error { return do(reflect.ValueOf(getter(uptr))) },
-				func(val any) error { return do(reflect.ValueOf(val)) }
+			return func(ctx context.Context, uptr unsafe.Pointer) error { return do(ctx, reflect.ValueOf(getter(uptr))) },
+				func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }
 		}
 	case reflect.Pointer:
 		{
@@ -456,17 +448,17 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			if anyfnc == nil {
 				return nil, nil
 			}
-			do := func(pv reflect.Value) error {
+			do := func(ctx context.Context, pv reflect.Value) error {
 				if !pv.IsValid() || pv.IsNil() {
 					if meta.Optional {
 						return nil
 					}
 					return fmt.Errorf("missing required")
 				}
-				return anyfnc(pv.Elem().Interface())
+				return anyfnc(ctx, pv.Elem().Interface())
 			}
-			return func(uptr unsafe.Pointer) error { return do(reflect.ValueOf(getter(uptr))) },
-				func(val any) error { return do(reflect.ValueOf(val)) }
+			return func(ctx context.Context, uptr unsafe.Pointer) error { return do(ctx, reflect.ValueOf(getter(uptr))) },
+				func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }
 		}
 	default:
 		{
@@ -490,21 +482,22 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 							return nil
 						})
 					}
-					if len(fncs) < 1 {
-						return nil, nil
-					}
-
-					do := func(tv time.Time) error {
+					do := func(ctx context.Context, tv time.Time) error {
 						for _, fn := range fncs {
 							if err := fn(tv); err != nil {
 								return err
 							}
 						}
+						if meta.Func != nil {
+							return meta.Func(ctx, tv)
+						}
 						return nil
 					}
 
-					return func(uptr unsafe.Pointer) error { return do(*((*time.Time)(unsafe.Add(uptr, field.Offset())))) },
-						func(val any) error { return do(val.(time.Time)) }
+					return func(ctx context.Context, uptr unsafe.Pointer) error {
+							return do(ctx, *((*time.Time)(unsafe.Add(uptr, field.Offset()))))
+						},
+						func(ctx context.Context, val any) error { return do(ctx, val.(time.Time)) }
 				}
 			}
 		}
@@ -516,7 +509,7 @@ var (
 	typeofTime = lion.Typeof[time.Time]()
 )
 
-func Vld[T any](ptr *T) error {
+func Vld[T any](ctx context.Context, ptr *T) error {
 	gotype := lion.Typeof[T]()
 	scheme, ok := schemes[gotype]
 	if !ok {
@@ -524,7 +517,7 @@ func Vld[T any](ptr *T) error {
 	}
 	uptr := unsafe.Pointer(ptr)
 	for _, vld := range scheme.vlds {
-		if err := vld(uptr); err != nil {
+		if err := vld(ctx, uptr); err != nil {
 			return err
 		}
 	}
