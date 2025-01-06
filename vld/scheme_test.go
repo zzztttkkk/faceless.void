@@ -2,9 +2,7 @@ package vld_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"regexp"
 	"testing"
 
 	"github.com/zzztttkkk/faceless.void/vld"
@@ -14,6 +12,10 @@ import (
 type E struct {
 	A1 string
 	A2 string
+}
+
+func init() {
+	vld.SchemeOf[E]().Scope(func(ctx context.Context, mptr *E) {})
 }
 
 type Params struct {
@@ -27,24 +29,31 @@ type Params struct {
 
 func init() {
 	lion.AppendType[map[int64]string]()
+	lion.AppendType[E]()
 
-	scheme := vld.SchemeOf[Params]()
-	defer scheme.Finish()
+	vld.SchemeOf[Params]().Scope(func(ctx context.Context, mptr *Params) {
+		vld.Int(&mptr.A).Min(1).Max(23).With(ctx)
 
-	model := vld.Ptr[Params]()
+		vld.String(&mptr.B).NoEmpty().With(ctx)
 
-	scheme.
-		Field(&model.B, vld.String().NoEmpty().Build()).
-		Field(&model.C, &vld.VldFieldMeta{MinLength: sql.Null[int]{V: 1, Valid: true}, Optional: true}).
-		Field(&model.D, &vld.VldFieldMeta{Regexp: regexp.MustCompile(`^\d+$`), Key: &vld.VldFieldMeta{MinInt: sql.Null[int64]{V: 12, Valid: true}}})
+		vld.Slice(&mptr.C).NoEmpty().
+			Ele(vld.StringMeta().NoEmpty().Build()).
+			With(ctx)
 
-	vld.Int(&model.A).Min(1).Max(23).Finish(scheme)
+		vld.Map(&mptr.D).
+			Ele(vld.StringMeta().RegexpString(`^\d+$`).Build()).
+			Key(vld.IntMeta[int64]().Min(12).Build()).
+			With(ctx)
+	})
 }
 
 func TestVld(t *testing.T) {
 	var params Params
+	params.A = 3
+	params.B = "xx"
+	params.C = []string{"ccc"}
 	params.D = map[int64]string{
-		12: "3444r",
+		13: "3444",
 	}
 	err := vld.Vld(context.Background(), &params)
 	fmt.Println(err)

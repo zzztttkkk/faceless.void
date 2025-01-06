@@ -9,6 +9,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/zzztttkkk/faceless.void/internal"
 	"github.com/zzztttkkk/lion"
 )
 
@@ -49,40 +50,46 @@ func init() {
 	lion.RegisterOf[VldFieldMeta]().TagNames("vld", "bnd", "db", "json").Unexposed()
 }
 
-type _Scheme struct {
+type _Scheme[T any] struct {
 	typeinfo *lion.TypeInfo[VldFieldMeta]
 	vlds     []_PtrVldFunc
 }
 
 var (
-	schemes = map[reflect.Type]*_Scheme{}
+	schemes = map[reflect.Type]_IScheme{}
 )
 
-func SchemeOf[T any]() *_Scheme {
+func SchemeOf[T any]() *_Scheme[T] {
 	v, ok := schemes[lion.Typeof[T]()]
 	if ok {
-		return v
+		return (any(v)).(*_Scheme[T])
 	}
-	obj := &_Scheme{
+	obj := &_Scheme[T]{
 		typeinfo: lion.TypeInfoOf[T, VldFieldMeta](),
 	}
 	schemes[lion.Typeof[T]()] = obj
 	return obj
 }
 
-func (scheme *_Scheme) Field(fptr any, meta *VldFieldMeta) *_Scheme {
+func (scheme *_Scheme[T]) Scope(fnc func(ctx context.Context, mptr *T)) {
+	defer scheme.Finish()
+	fnc(context.WithValue(context.Background(), internal.CtxKeyForVldScheme, scheme), Ptr[T]())
+}
+
+func (scheme *_Scheme[T]) Field(fptr any, meta *VldFieldMeta) *_Scheme[T] {
 	field := scheme.typeinfo.FieldByPtr(fptr)
 	field.UpdateMetainfo(meta)
 	return scheme
 }
 
-func (scheme *_Scheme) Finish() {
+func (scheme *_Scheme[T]) Finish() {
 	for idx := range scheme.typeinfo.Fields {
 		fptr := &scheme.typeinfo.Fields[idx]
 		if fptr.Metainfo() == nil {
+
 			continue
 		}
-		fn, _ := makeVldFunction(fptr, nil, fptr.StructField().Type)
+		fn, _ := makeVldFunction(fptr, fptr.Metainfo(), fptr.StructField().Type)
 		if fn == nil {
 			continue
 		}
@@ -185,11 +192,10 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			}
 		}
 	}
-
-	_rawmeta := meta
 	if meta == nil {
-		meta = field.Metainfo()
+		return nil, nil
 	}
+
 	getter := field.Getter()
 	switch gotype.Kind() {
 	case reflect.String:
@@ -269,13 +275,13 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 		{
 			switch gotype.Bits() {
 			case 8:
-				return makeIntVld[int8](field, _rawmeta)
+				return makeIntVld[int8](field, meta)
 			case 16:
-				return makeIntVld[int16](field, _rawmeta)
+				return makeIntVld[int16](field, meta)
 			case 32:
-				return makeIntVld[int32](field, _rawmeta)
+				return makeIntVld[int32](field, meta)
 			case 64:
-				return makeIntVld[int64](field, _rawmeta)
+				return makeIntVld[int64](field, meta)
 			}
 			break
 		}
@@ -283,13 +289,13 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 		{
 			switch gotype.Bits() {
 			case 8:
-				return makeUintVld[uint8](field, _rawmeta)
+				return makeUintVld[uint8](field, meta)
 			case 16:
-				return makeUintVld[uint16](field, _rawmeta)
+				return makeUintVld[uint16](field, meta)
 			case 32:
-				return makeUintVld[uint32](field, _rawmeta)
+				return makeUintVld[uint32](field, meta)
 			case 64:
-				return makeUintVld[uint64](field, _rawmeta)
+				return makeUintVld[uint64](field, meta)
 			}
 			break
 		}
@@ -373,8 +379,11 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 					return nil
 				})
 			}
-			_, elevld := makeVldFunction(field, _rawmeta.Ele, gotype.Elem())
+			var elevld _ValVldFunc
 			var keyvld _ValVldFunc
+			if meta.Ele != nil {
+				_, elevld = makeVldFunction(field, meta.Ele, gotype.Elem())
+			}
 			if meta.Key != nil {
 				_, keyvld = makeVldFunction(field, meta.Key, gotype.Key())
 			}
@@ -445,7 +454,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			if gotype.Elem().Kind() == reflect.Pointer {
 				panic(fmt.Errorf("fv.vld: nested pointer is not supported"))
 			}
-			_, anyfnc := makeVldFunction(field, _rawmeta, gotype.Elem())
+			_, anyfnc := makeVldFunction(field, meta, gotype.Elem())
 			if anyfnc == nil {
 				return nil, nil
 			}
@@ -506,6 +515,28 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 	panic(fmt.Errorf("unsupported type: %s", gotype))
 }
 
+type _IScheme interface {
+	updatemeta(ptr any, meta *VldFieldMeta)
+	dovld(ctx context.Context, uptr unsafe.Pointer) error
+}
+
+func (scheme *_Scheme[T]) dovld(ctx context.Context, uptr unsafe.Pointer) error {
+	for _, vld := range scheme.vlds {
+		if err := vld(ctx, uptr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (scheme *_Scheme[T]) updatemeta(fptr any, meta *VldFieldMeta) {
+	fv := scheme.typeinfo.FieldByPtr(fptr)
+	if fv == nil {
+		panic(fmt.Errorf("fv.vld: bad field point. %s, pointer: %p", scheme.typeinfo.GoType, fptr))
+	}
+	fv.UpdateMetainfo(meta)
+}
+
 var (
 	typeofTime = lion.Typeof[time.Time]()
 )
@@ -514,13 +545,7 @@ func Vld[T any](ctx context.Context, ptr *T) error {
 	gotype := lion.Typeof[T]()
 	scheme, ok := schemes[gotype]
 	if !ok {
-		return fmt.Errorf("faceless.void.vld: can not found scheme for type: %s", gotype)
+		return fmt.Errorf("fv.vld: can not found scheme for type: %s", gotype)
 	}
-	uptr := unsafe.Pointer(ptr)
-	for _, vld := range scheme.vlds {
-		if err := vld(ctx, uptr); err != nil {
-			return err
-		}
-	}
-	return nil
+	return scheme.dovld(ctx, unsafe.Pointer(ptr))
 }

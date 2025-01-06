@@ -21,16 +21,16 @@ func (builder *sliceBuidler[T]) Ele(meta *VldFieldMeta) *sliceBuidler[T] {
 }
 
 func (builder *sliceBuidler[T]) MinSize(minl int) *sliceBuidler[T] {
-	builder.pairs = append(builder.pairs, internal.PairOf("minl", minl))
+	builder.pairs = append(builder.pairs, internal.PairOf("mins", minl))
 	return builder
 }
 
 func (builder *sliceBuidler[T]) MaxSize(maxl int) *sliceBuidler[T] {
-	builder.pairs = append(builder.pairs, internal.PairOf("maxl", maxl))
+	builder.pairs = append(builder.pairs, internal.PairOf("maxs", maxl))
 	return builder
 }
 
 func (builder *sliceBuidler[T]) NoEmpty() *sliceBuidler[T] {
-	builder.pairs = append(builder.pairs, internal.PairOf("minl", 1))
+	builder.pairs = append(builder.pairs, internal.PairOf("mins", 1))
 	return builder
 }

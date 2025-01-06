@@ -11,12 +11,12 @@ type stringBuilder struct {
 	commonBuilder[string, stringBuilder]
 }
 
-func String() *stringBuilder {
+func StringMeta() *stringBuilder {
 	return (&stringBuilder{})
 }
 
-func StringWithPtr(ptr *string) *stringBuilder {
-	return String().updateptr(ptr)
+func String(ptr *string) *stringBuilder {
+	return StringMeta().updateptr(ptr)
 }
 
 func (builder *stringBuilder) Regexp(re *regexp.Regexp) *stringBuilder {

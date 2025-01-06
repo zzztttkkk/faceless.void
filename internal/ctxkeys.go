@@ -7,4 +7,5 @@ const (
 	CtxKeyForBindingGetter
 	CtxKeyForLanguageKind
 	CtxKeyForSqlTx
+	CtxKeyForVldScheme
 )
