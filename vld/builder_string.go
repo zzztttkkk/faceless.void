@@ -3,12 +3,10 @@ package vld
 import (
 	"regexp"
 	"sync"
-
-	"github.com/zzztttkkk/faceless.void/internal"
 )
 
 type stringBuilder struct {
-	commonBuilder[string, stringBuilder]
+	_CommonBuilder[string, stringBuilder]
 }
 
 func StringMeta() *stringBuilder {
@@ -20,13 +18,11 @@ func String(ptr *string) *stringBuilder {
 }
 
 func (builder *stringBuilder) Regexp(re *regexp.Regexp) *stringBuilder {
-	builder.pairs = append(builder.pairs, internal.PairOf("regexp", re))
-	return builder
+	return builder.set("regexp", re)
 }
 
 func (builder *stringBuilder) RegexpString(re string) *stringBuilder {
-	builder.pairs = append(builder.pairs, internal.PairOf("regexp", regexp.MustCompile(re)))
-	return builder
+	return builder.Regexp(regexp.MustCompile(re))
 }
 
 var (
@@ -48,21 +44,17 @@ func (builder *stringBuilder) Email() *stringBuilder {
 }
 
 func (builder *stringBuilder) MinLength(minl int) *stringBuilder {
-	builder.pairs = append(builder.pairs, internal.PairOf("minl", minl))
-	return builder
+	return builder.set("minl", minl)
 }
 
 func (builder *stringBuilder) MaxLength(maxl int) *stringBuilder {
-	builder.pairs = append(builder.pairs, internal.PairOf("maxl", maxl))
-	return builder
+	return builder.set("maxl", maxl)
 }
 
 func (builder *stringBuilder) NoEmpty() *stringBuilder {
-	builder.pairs = append(builder.pairs, internal.PairOf("minl", 1))
-	return builder
+	return builder.MinLength(1)
 }
 
 func (builder *stringBuilder) Enum(names ...string) *stringBuilder {
-	builder.pairs = append(builder.pairs, internal.PairOf("stringranges", names))
-	return builder
+	return builder.set("stringranges", names)
 }

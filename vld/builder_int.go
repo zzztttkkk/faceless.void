@@ -3,36 +3,33 @@ package vld
 import (
 	"fmt"
 
-	"github.com/zzztttkkk/faceless.void/internal"
 	"github.com/zzztttkkk/lion"
 )
 
-type intBuilder[T lion.IntType] struct {
-	commonBuilder[T, intBuilder[T]]
+type _IntBuilder[T lion.IntType] struct {
+	_CommonBuilder[T, _IntBuilder[T]]
 	unsigned bool
 }
 
-func (builder *intBuilder[T]) wrapkey(k string) string {
+func (builder *_IntBuilder[T]) wrapkey(k string) string {
 	if builder.unsigned {
 		return fmt.Sprintf("%s.u", k)
 	}
 	return k
 }
 
-func (builder *intBuilder[T]) Min(minv T) *intBuilder[T] {
-	builder.pairs = append(builder.pairs, internal.PairOf(builder.wrapkey("minv"), minv))
-	return builder
+func (builder *_IntBuilder[T]) Min(minv T) *_IntBuilder[T] {
+	return builder.set(builder.wrapkey("minv"), minv)
 }
 
-func (builder *intBuilder[T]) Max(maxv T) *intBuilder[T] {
-	builder.pairs = append(builder.pairs, internal.PairOf(builder.wrapkey("maxv"), maxv))
-	return builder
+func (builder *_IntBuilder[T]) Max(maxv T) *_IntBuilder[T] {
+	return builder.set(builder.wrapkey("maxv"), maxv)
 }
 
-func IntMeta[T lion.IntType]() *intBuilder[T] {
-	return (&intBuilder[T]{unsigned: lion.IsUnsignedInt[T]()})
+func IntMeta[T lion.IntType]() *_IntBuilder[T] {
+	return (&_IntBuilder[T]{unsigned: lion.IsUnsignedInt[T]()})
 }
 
-func Int[T lion.IntType](ptr *T) *intBuilder[T] {
+func Int[T lion.IntType](ptr *T) *_IntBuilder[T] {
 	return IntMeta[T]().updateptr(ptr)
 }

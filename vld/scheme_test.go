@@ -10,12 +10,14 @@ import (
 )
 
 type E struct {
-	A1 string
-	A2 string
+	Email string
+	A2    string
 }
 
 func init() {
-	vld.SchemeOf[E]().Scope(func(ctx context.Context, mptr *E) {})
+	vld.SchemeOf[E]().Scope(func(ctx context.Context, mptr *E) {
+		vld.String(&mptr.Email).Email().With(ctx)
+	})
 }
 
 type Params struct {
@@ -44,6 +46,9 @@ func init() {
 			Ele(vld.StringMeta().RegexpString(`^\d+$`).Build()).
 			Key(vld.IntMeta[int64]().Min(12).Build()).
 			With(ctx)
+
+		vld.Slice(&mptr.ES).NoEmpty().Ele(vld.StructMeta[E]().Build()).With(ctx)
+		vld.Struct(&mptr.E).With(ctx)
 	})
 }
 
@@ -55,6 +60,10 @@ func TestVld(t *testing.T) {
 	params.D = map[int64]string{
 		13: "3444",
 	}
+	params.ES = []*E{
+		{Email: "aaxx@xx.com"},
+	}
+	params.E = &E{Email: "vvv@x.cc"}
 	err := vld.Vld(context.Background(), &params)
 	fmt.Println(err)
 }
