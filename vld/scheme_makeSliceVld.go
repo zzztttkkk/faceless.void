@@ -31,16 +31,17 @@ func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype re
 			})
 		}
 	}
+
 	eleptrfnc, eleanyfnc := makeVldFunction(field, meta.ele, gotype.Elem())
 	if eleptrfnc != nil || eleanyfnc != nil {
-		if perferptr(eleptrfnc, eleanyfnc, gotype.Elem()) {
+		if perferptr(eleptrfnc, eleanyfnc, gotype.Elem()) && false {
 			slicefncs = append(slicefncs, func(ctx context.Context, sv reflect.Value) error {
 				slen := sv.Len()
 				for i := 0; i < slen; i++ {
 					eleav := sv.Index(i).Interface()
 					eleavptr := (*anystruct)(unsafe.Pointer(&eleav))
-					fmt.Println(eleav, eleavptr.valptr)
-					if ee := eleptrfnc(ctx, unsafe.Pointer(eleavptr.valptr)); ee != nil {
+					// if slice's ele type kind is pointer, this will not work. I do not know why.
+					if ee := eleptrfnc(ctx, eleavptr.valptr); ee != nil {
 						return ee
 					}
 				}
@@ -77,7 +78,7 @@ func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype re
 		return nil
 	}
 	return func(ctx context.Context, uptr unsafe.Pointer) error {
-			sliceptrv := reflect.NewAt(field.StructField().Type, uptr)
+			sliceptrv := reflect.NewAt(gotype, uptr)
 			return do(ctx, sliceptrv.Elem())
 		},
 		func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }

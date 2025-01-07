@@ -20,7 +20,7 @@ func perferptr(ptrfnc _PtrVldFunc, valfnc _ValVldFunc, eletype reflect.Type) boo
 	if valfnc == nil {
 		return true
 	}
-	return unsafe.Sizeof(eletype) > PerferPtrVldSize
+	return eletype.Size() > PerferPtrVldSize
 }
 
 func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
@@ -49,7 +49,7 @@ func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype 
 			},
 			func(ctx context.Context, val any) error {
 				antptr := (*anystruct)(unsafe.Pointer(&val))
-				return do(ctx, unsafe.Pointer(antptr.valptr))
+				return do(ctx, antptr.valptr)
 			}
 	}
 

@@ -51,7 +51,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 						}
 						valany := iter.Value().Interface()
 						valanyptr := (*anystruct)(unsafe.Pointer(&valany))
-						if ve := eleptrvld(ctx, unsafe.Pointer(valanyptr.valptr)); ve != nil {
+						if ve := eleptrvld(ctx, valanyptr.valptr); ve != nil {
 							return ve
 						}
 					}
@@ -80,7 +80,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 					for iter.Next() {
 						valany := iter.Value().Interface()
 						valanyptr := (*anystruct)(unsafe.Pointer(&valany))
-						if ve := eleptrvld(ctx, unsafe.Pointer(valanyptr.valptr)); ve != nil {
+						if ve := eleptrvld(ctx, valanyptr.valptr); ve != nil {
 							return ve
 						}
 					}
@@ -130,7 +130,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 		return nil
 	}
 	return func(ctx context.Context, uptr unsafe.Pointer) error {
-			mapptrv := reflect.NewAt(field.StructField().Type, uptr)
+			mapptrv := reflect.NewAt(gotype, uptr)
 			return do(ctx, mapptrv.Elem())
 		},
 		func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }

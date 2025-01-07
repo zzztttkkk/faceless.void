@@ -120,13 +120,32 @@ func (scheme *_Scheme[T]) Finish() {
 type _PtrVldFunc = func(ctx context.Context, ptr unsafe.Pointer) error
 type _ValVldFunc = func(ctx context.Context, val any) error
 
-
 func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	EnsureSimpleContainer := func() {
 		switch gotype.Elem().Kind() {
 		case reflect.Array, reflect.Slice, reflect.Map:
 			{
 				panic(fmt.Errorf("fv.vld: nested container is not supported, %s", gotype))
+			}
+		case reflect.Pointer:
+			{
+				// see fcuntion `makeSliceVld`
+				panic(fmt.Errorf("fv.vld: change ele kind to value, %s", gotype))
+			}
+		}
+
+		if gotype.Kind() == reflect.Map {
+			switch gotype.Key().Kind() {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+				reflect.String, reflect.Struct, reflect.Bool:
+				{
+					break
+				}
+			default:
+				{
+					panic(fmt.Errorf("fv.vld: unsupported key kind, %s", gotype))
+				}
 			}
 		}
 	}
@@ -167,7 +186,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			}
 			break
 		}
-	case reflect.Slice, reflect.Array:
+	case reflect.Slice:
 		{
 			EnsureSimpleContainer()
 			return makeSliceVld(field, meta, gotype)
@@ -257,8 +276,8 @@ func (scheme *_Scheme[T]) dovldptr(ctx context.Context, uptr unsafe.Pointer) err
 }
 
 type anystruct struct {
-	typeptr uintptr
-	valptr  uintptr
+	_typeptr unsafe.Pointer
+	valptr   unsafe.Pointer
 }
 
 func (scheme *_Scheme[T]) dovldval(ctx context.Context, val any) error {
@@ -267,7 +286,7 @@ func (scheme *_Scheme[T]) dovldval(ctx context.Context, val any) error {
 		return scheme.dovldptr(ctx, vv.UnsafePointer())
 	}
 	var ptr = (*anystruct)(unsafe.Pointer((&val)))
-	return scheme.dovldptr(ctx, unsafe.Pointer(ptr.valptr))
+	return scheme.dovldptr(ctx, ptr.valptr)
 }
 
 func (scheme *_Scheme[T]) updatemeta(fptr any, meta *VldFieldMeta) {
