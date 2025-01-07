@@ -56,14 +56,16 @@ func TestVld(t *testing.T) {
 	var params Params
 	params.A = 3
 	params.B = "xx"
-	params.C = []string{"ccc"}
+	params.C = []string{"ccc", "dddd"}
 	params.D = map[int64]string{
 		13: "3444",
 	}
-	params.ES = []*E{
-		{Email: "aaxx@xx.com"},
+	params.E = &E{
+		Email: "a@x.com",
 	}
-	params.E = &E{Email: "vvv@x.cc"}
+	params.ES = []*E{
+		{Email: "vvv@xdd.com"},
+	}
 	err := vld.Vld(context.Background(), &params)
 	fmt.Println(err)
 }
