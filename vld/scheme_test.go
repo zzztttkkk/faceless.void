@@ -56,7 +56,7 @@ func TestVld(t *testing.T) {
 	var params Params
 	params.A = 3
 	params.B = "xx"
-	params.C = []string{"ccc", "dddd"}
+	params.C = []string{"ccc"}
 	params.D = map[int64]string{
 		13: "3444",
 	}

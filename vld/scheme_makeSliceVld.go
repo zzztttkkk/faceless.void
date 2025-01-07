@@ -39,6 +39,7 @@ func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype re
 				for i := 0; i < slen; i++ {
 					eleav := sv.Index(i).Interface()
 					eleavptr := (*anystruct)(unsafe.Pointer(&eleav))
+					fmt.Println(eleav, eleavptr.valptr)
 					if ee := eleptrfnc(ctx, unsafe.Pointer(eleavptr.valptr)); ee != nil {
 						return ee
 					}

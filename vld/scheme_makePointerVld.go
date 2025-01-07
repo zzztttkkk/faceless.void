@@ -34,7 +34,7 @@ func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype 
 	}
 	if perferptr(ptrfnc, valfnc, eletype) {
 		do := func(ctx context.Context, uptr unsafe.Pointer) error {
-			ptrptrv := reflect.NewAt(field.StructField().Type, uptr)
+			ptrptrv := reflect.NewAt(gotype, uptr)
 			ptrv := ptrptrv.Elem()
 			if !ptrv.IsValid() || ptrv.IsNil() {
 				if meta.optional {
