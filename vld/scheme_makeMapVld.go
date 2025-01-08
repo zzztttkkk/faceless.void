@@ -2,7 +2,6 @@ package vld
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"unsafe"
 
@@ -10,10 +9,10 @@ import (
 )
 
 func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
-	var mapfncs = []func(ctx context.Context, sv reflect.Value) error{}
+	var mapfncs = []func(ctx context.Context, sv reflect.Value) *Error{}
 	if meta.maxSize.Valid {
 		maxs := meta.maxSize.V
-		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) *Error {
 			lv := sv.Len()
 			if lv > maxs {
 				return newerr(field, meta, ErrorKindContainerSizeTooLarge).withbv(lv)
@@ -23,7 +22,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 	}
 	if meta.minSize.Valid {
 		mins := meta.minSize.V
-		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) *Error {
 			lv := sv.Len()
 			if lv < mins {
 				return newerr(field, meta, ErrorKindContainerSizeTooSmall).withbv(lv)
@@ -47,9 +46,9 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 	if elevalvld != nil || eleptrvld != nil {
 		isperferptr := perferptr(eleptrvld, elevalvld, eletype)
 
-		var elevvfnc func(ctx context.Context, v reflect.Value) error
+		var elevvfnc func(ctx context.Context, v reflect.Value) *Error
 		if isperferptr {
-			elevvfnc = func(ctx context.Context, vv reflect.Value) error {
+			elevvfnc = func(ctx context.Context, vv reflect.Value) *Error {
 				var eleuptr unsafe.Pointer
 				if eleisptr {
 					valany := vv.Interface()
@@ -62,24 +61,27 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 					eleuptr = valanyptr.valptr
 				}
 				if ve := eleptrvld(ctx, eleuptr); ve != nil {
-					return ve
+					return ve.appendfield(field)
 				}
 				return nil
 			}
 		} else {
-			elevvfnc = func(ctx context.Context, val reflect.Value) error {
-				return elevalvld(ctx, val.Interface())
+			elevvfnc = func(ctx context.Context, val reflect.Value) *Error {
+				if ve := elevalvld(ctx, val.Interface()); ve != nil {
+					return ve.appendfield(field)
+				}
+				return nil
 			}
 		}
 
 		if keyvld != nil {
 			if isperferptr {
-				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) *Error {
 					iter := sv.MapRange()
 					for iter.Next() {
 						key := iter.Key()
 						if ke := keyvld(ctx, key.Interface()); ke != nil {
-							return ke
+							return ke.appendfield(field)
 						}
 						if ve := elevvfnc(ctx, iter.Value()); ve != nil {
 							return ve
@@ -88,12 +90,12 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 					return nil
 				})
 			} else {
-				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) *Error {
 					iter := sv.MapRange()
 					for iter.Next() {
 						key := iter.Key()
 						if ke := keyvld(ctx, key.Interface()); ke != nil {
-							return ke
+							return ke.appendfield(field)
 						}
 						if ve := elevvfnc(ctx, iter.Value()); ve != nil {
 							return ve
@@ -103,7 +105,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 				})
 			}
 		} else {
-			mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+			mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) *Error {
 				iter := sv.MapRange()
 				for iter.Next() {
 					if ve := elevvfnc(ctx, iter.Value()); ve != nil {
@@ -114,24 +116,24 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 			})
 		}
 	} else if keyvld != nil {
-		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) *Error {
 			iter := sv.MapRange()
 			for iter.Next() {
 				key := iter.Key()
 				if ke := keyvld(ctx, key.Interface()); ke != nil {
-					return ke
+					return ke.appendfield(field)
 				}
 			}
 			return nil
 		})
 	}
 
-	do := func(ctx context.Context, mapv reflect.Value) error {
+	do := func(ctx context.Context, mapv reflect.Value) *Error {
 		if !mapv.IsValid() || mapv.IsNil() {
 			if meta.optional {
 				return nil
 			}
-			return fmt.Errorf("missing required")
+			return newerr(field, meta, ErrorKindNilMap)
 		}
 		for _, fnc := range mapfncs {
 			if err := fnc(ctx, mapv); err != nil {
@@ -146,9 +148,9 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 		}
 		return nil
 	}
-	return func(ctx context.Context, uptr unsafe.Pointer) error {
+	return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 			mapptrv := reflect.NewAt(gotype, uptr)
 			return do(ctx, mapptrv.Elem())
 		},
-		func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }
+		func(ctx context.Context, val any) *Error { return do(ctx, reflect.ValueOf(val)) }
 }

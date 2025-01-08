@@ -26,6 +26,14 @@ func (ev ErrorKind) String() string {
 			return "IntNotInRange"
 		}
 		
+		case ErrorKindTimeTooEarly : {
+			return "TimeTooEarly"
+		}
+		
+		case ErrorKindTimeTooLate : {
+			return "TimeTooLate"
+		}
+		
 		case ErrorKindStringTooLong : {
 			return "StringTooLong"
 		}
@@ -54,6 +62,14 @@ func (ev ErrorKind) String() string {
 			return "NilPointer"
 		}
 		
+		case ErrorKindNilSlice : {
+			return "NilSlice"
+		}
+		
+		case ErrorKindNilMap : {
+			return "NilMap"
+		}
+		
 		default: {
 			panic(fmt.Errorf("vld.ErrorKind: unknown enum value, %d", ev))
 		} 
@@ -74,6 +90,10 @@ func init(){
 	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindIntNotInRange)
 	
+	AllErrorKinds = append(AllErrorKinds, ErrorKindTimeTooEarly)
+	
+	AllErrorKinds = append(AllErrorKinds, ErrorKindTimeTooLate)
+	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindStringTooLong)
 	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindStringTooShort)
@@ -87,6 +107,10 @@ func init(){
 	AllErrorKinds = append(AllErrorKinds, ErrorKindContainerSizeTooSmall)
 	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindNilPointer)
+	
+	AllErrorKinds = append(AllErrorKinds, ErrorKindNilSlice)
+	
+	AllErrorKinds = append(AllErrorKinds, ErrorKindNilMap)
 	
 }
 

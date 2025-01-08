@@ -3,6 +3,7 @@ package vld
 import (
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"github.com/zzztttkkk/lion"
 	"github.com/zzztttkkk/lion/enums"
@@ -19,6 +20,9 @@ const (
 	ErrorKindIntGtMax
 	ErrorKindIntNotInRange
 
+	ErrorKindTimeTooEarly
+	ErrorKindTimeTooLate
+
 	ErrorKindStringTooLong
 	ErrorKindStringTooShort
 	ErrorKindStringNotMatched
@@ -28,6 +32,8 @@ const (
 	ErrorKindContainerSizeTooSmall
 
 	ErrorKindNilPointer
+	ErrorKindNilSlice
+	ErrorKindNilMap
 )
 
 var (
@@ -45,8 +51,8 @@ func init() {
 }
 
 type Error struct {
-	Field    *lion.Field[VldFieldMeta]
-	Meta     *VldFieldMeta
+	Fields   []unsafe.Pointer
+	Meta     unsafe.Pointer
 	Kind     ErrorKind
 	BadValue any
 	RawError error
@@ -58,21 +64,49 @@ var (
 
 func (e *Error) Error() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("fv.vld: %s.%s, Kind: %s", e.Field.Typeinfo().GoType.Name(), e.Field.StructField().Name, e.Kind))
-	if e.BadValue != nil {
-		sb.WriteString(fmt.Sprintf(", BadValue: %v", e.BadValue))
+	sb.WriteString("fv.vld: [")
+	isfirst := true
+	for i := len(e.Fields) - 1; i >= 0; i-- {
+		fuptr := e.Fields[i]
+		fptr := (*lion.Field[VldFieldMeta])(fuptr)
+
+		if isfirst {
+			isfirst = false
+			pkgpath := fptr.Typeinfo().GoType.PkgPath()
+			idx := strings.LastIndexByte(pkgpath, '/')
+			sb.WriteString(pkgpath[idx+1:])
+			sb.WriteByte('.')
+			sb.WriteString(fptr.Typeinfo().GoType.Name())
+		} else {
+			sb.WriteByte(' ')
+			sb.WriteString(fptr.Typeinfo().GoType.Name())
+		}
+		sb.WriteByte('.')
+		sb.WriteString(fptr.StructField().Name)
 	}
+
+	sb.WriteString("] Kind: ")
+	sb.WriteString(e.Kind.String())
+
+	if e.BadValue != nil {
+		sb.WriteString(" BadValue: ")
+		sb.WriteString(fmt.Sprintf("%v", e.BadValue))
+	}
+
 	if e.RawError != nil {
-		sb.WriteString(fmt.Sprintf(", RawErr: %e", e.RawError))
+		sb.WriteString(" RawError: ")
+		sb.WriteString(fmt.Sprintf("%e", e.RawError))
 	}
 	return sb.String()
 }
 
 func newerr(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, kind ErrorKind) *Error {
+	fs := make([]unsafe.Pointer, 0, 4)
+	fs = append(fs, unsafe.Pointer(field))
 	return &Error{
-		Field: field,
-		Meta:  meta,
-		Kind:  kind,
+		Fields: fs,
+		Meta:   unsafe.Pointer(meta),
+		Kind:   kind,
 	}
 }
 
@@ -89,5 +123,10 @@ func (err *Error) withbv(bv any) *Error {
 
 func (err *Error) withre(re error) *Error {
 	err.RawError = re
+	return err
+}
+
+func (err *Error) appendfield(filed *lion.Field[VldFieldMeta]) *Error {
+	err.Fields = append(err.Fields, unsafe.Pointer(filed))
 	return err
 }

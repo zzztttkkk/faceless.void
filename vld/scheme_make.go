@@ -14,10 +14,10 @@ type _MVType interface {
 }
 
 func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta], meta *VldFieldMeta, minv sql.Null[MV], maxv sql.Null[MV], ranges []MV) (_PtrVldFunc, _ValVldFunc) {
-	var fncs = []func(iv T) error{}
+	var fncs = []func(iv T) *Error{}
 	if maxv.Valid {
 		maxv := T(maxv.V)
-		fncs = append(fncs, func(iv T) error {
+		fncs = append(fncs, func(iv T) *Error {
 			if iv > maxv {
 				return newerr(field, meta, ErrorKindIntGtMax).withbv(iv)
 			}
@@ -26,7 +26,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta
 	}
 	if minv.Valid {
 		minv := T(minv.V)
-		fncs = append(fncs, func(iv T) error {
+		fncs = append(fncs, func(iv T) *Error {
 			if iv < minv {
 				return newerr(field, meta, ErrorKindIntLtMin).withbv(iv)
 			}
@@ -40,7 +40,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta
 		}
 		if len(rangs) > 16 {
 			rangeset := internal.MakeSet(rangs)
-			fncs = append(fncs, func(iv T) error {
+			fncs = append(fncs, func(iv T) *Error {
 				_, ok := rangeset[iv]
 				if ok {
 					return nil
@@ -48,7 +48,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta
 				return newerr(field, meta, ErrorKindIntNotInRange).withbv(iv)
 			})
 		} else {
-			fncs = append(fncs, func(iv T) error {
+			fncs = append(fncs, func(iv T) *Error {
 				for _, rv := range rangs {
 					if iv == rv {
 						return nil
@@ -59,7 +59,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta
 		}
 	}
 
-	do := func(ctx context.Context, iv T) error {
+	do := func(ctx context.Context, iv T) *Error {
 		for _, fn := range fncs {
 			if err := fn(iv); err != nil {
 				return err
@@ -73,8 +73,8 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta
 		}
 		return nil
 	}
-	return func(ctx context.Context, uptr unsafe.Pointer) error { return do(ctx, *((*T)(uptr))) },
-		func(ctx context.Context, val any) error { return do(ctx, val.(T)) }
+	return func(ctx context.Context, uptr unsafe.Pointer) *Error { return do(ctx, *((*T)(uptr))) },
+		func(ctx context.Context, val any) *Error { return do(ctx, val.(T)) }
 }
 
 func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
@@ -92,11 +92,11 @@ func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldF
 }
 
 func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
-	var fncs = []func(v string) error{}
+	var fncs = []func(v string) *Error{}
 
 	if meta.maxLength.Valid {
 		maxl := meta.maxLength.V
-		fncs = append(fncs, func(v string) error {
+		fncs = append(fncs, func(v string) *Error {
 			lv := len(v)
 			if lv > maxl {
 				return newerr(field, meta, ErrorKindStringTooLong).withbv(lv)
@@ -106,7 +106,7 @@ func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVld
 	}
 	if meta.minLength.Valid {
 		minl := meta.minLength.V
-		fncs = append(fncs, func(v string) error {
+		fncs = append(fncs, func(v string) *Error {
 			lv := len(v)
 			if lv < minl {
 				return newerr(field, meta, ErrorKindStringTooShort).withbv(lv)
@@ -115,7 +115,7 @@ func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVld
 		})
 	}
 	if meta.regexp != nil {
-		fncs = append(fncs, func(v string) error {
+		fncs = append(fncs, func(v string) *Error {
 			if !meta.regexp.MatchString(v) {
 				return newerr(field, meta, ErrorKindStringNotMatched).withbv(v)
 			}
@@ -128,7 +128,7 @@ func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVld
 			for _, rv := range meta.stringRanges {
 				rangemap[rv] = struct{}{}
 			}
-			fncs = append(fncs, func(v string) error {
+			fncs = append(fncs, func(v string) *Error {
 				_, ok := rangemap[v]
 				if ok {
 					return nil
@@ -136,7 +136,7 @@ func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVld
 				return newerr(field, meta, ErrorKindStringNotInRanges).withbv(v)
 			})
 		} else {
-			fncs = append(fncs, func(v string) error {
+			fncs = append(fncs, func(v string) *Error {
 				for _, rv := range meta.stringRanges {
 					if v == rv {
 						return nil
@@ -147,7 +147,7 @@ func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVld
 		}
 	}
 
-	do := func(ctx context.Context, fv string) error {
+	do := func(ctx context.Context, fv string) *Error {
 		for _, fn := range fncs {
 			if err := fn(fv); err != nil {
 				return err
@@ -160,10 +160,10 @@ func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVld
 		}
 		return nil
 	}
-	return func(ctx context.Context, uptr unsafe.Pointer) error {
+	return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 			fv := *((*string)(uptr))
 			return do(ctx, fv)
-		}, func(ctx context.Context, val any) error {
+		}, func(ctx context.Context, val any) *Error {
 			return do(ctx, val.(string))
 		}
 }

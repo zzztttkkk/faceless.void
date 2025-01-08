@@ -29,38 +29,45 @@ func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype 
 		return nil, nil
 	}
 	if perferptr(ptrfnc, valfnc, eletype) {
-		do := func(ctx context.Context, uptr unsafe.Pointer) error {
+		do := func(ctx context.Context, uptr unsafe.Pointer) *Error {
 			ptrptrv := reflect.NewAt(gotype, uptr)
 			ptrv := ptrptrv.Elem()
 			if !ptrv.IsValid() || ptrv.IsNil() {
 				if meta.optional {
 					return nil
 				}
-				return &Error{Field: field, Kind: ErrorKindNilPointer}
+				return newerr(field, meta, ErrorKindNilPointer)
 			}
-			return ptrfnc(ctx, ptrv.UnsafePointer())
+			if eev := ptrfnc(ctx, ptrv.UnsafePointer()); eev != nil {
+				return eev.appendfield(field)
+			}
+			return nil
 		}
-		return func(ctx context.Context, uptr unsafe.Pointer) error {
+		return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 				return do(ctx, uptr)
 			},
-			func(ctx context.Context, val any) error {
+			func(ctx context.Context, val any) *Error {
 				antptr := (*anystruct)(unsafe.Pointer(&val))
 				return do(ctx, antptr.valptr)
 			}
 	}
 
-	do := func(ctx context.Context, pv reflect.Value) error {
+	do := func(ctx context.Context, pv reflect.Value) *Error {
 		if !pv.IsValid() || pv.IsNil() {
 			if meta.optional {
 				return nil
 			}
-			return fmt.Errorf("missing required")
+			return newerr(field, meta, ErrorKindNilPointer)
 		}
-		return valfnc(ctx, pv.Elem().Interface())
+		if eev := valfnc(ctx, pv.Elem().Interface()); eev != nil {
+			return eev.appendfield(field)
+		}
+		return nil
+
 	}
-	return func(ctx context.Context, uptr unsafe.Pointer) error {
+	return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 			ptrval := reflect.NewAt(field.StructField().Type, uptr)
 			return do(ctx, ptrval.Elem())
 		},
-		func(ctx context.Context, val any) error { return do(ctx, reflect.ValueOf(val)) }
+		func(ctx context.Context, val any) *Error { return do(ctx, reflect.ValueOf(val)) }
 }

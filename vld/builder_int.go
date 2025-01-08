@@ -36,11 +36,20 @@ func (builder *_IntBuilder[T]) EnumSlice(slicev any) *_IntBuilder[T] {
 	if v.Kind() != reflect.Slice || !v.IsValid() {
 		panic(fmt.Errorf("fv.vld: param `slicev` is not a valid slice"))
 	}
-
-	elev := reflect.New(v.Type().Elem()).Elem()
-	fmt.Println(elev.Interface())
-
-	return builder.Enums()
+	te := reflect.New(v.Type().Elem()).Elem()
+	if !te.CanInt() && !te.CanUint() {
+		panic(fmt.Errorf("fv.vld: slice ele can not cast to int64/uint64"))
+	}
+	var nums = []T{}
+	for i := 0; i < v.Len(); i++ {
+		ele := v.Index(i)
+		if ele.CanUint() {
+			nums = append(nums, T(ele.Uint()))
+		} else {
+			nums = append(nums, T(ele.Int()))
+		}
+	}
+	return builder.Enums(nums...)
 }
 
 func IntMeta[T lion.IntType]() *_IntBuilder[T] {

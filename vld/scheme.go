@@ -127,8 +127,8 @@ func (scheme *_Scheme[T]) Finish() {
 	}
 }
 
-type _PtrVldFunc = func(ctx context.Context, ptr unsafe.Pointer) error
-type _ValVldFunc = func(ctx context.Context, val any) error
+type _PtrVldFunc = func(ctx context.Context, ptr unsafe.Pointer) *Error
+type _ValVldFunc = func(ctx context.Context, val any) *Error
 
 func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	EnsureSimpleContainer := func() {
@@ -207,47 +207,49 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 			switch gotype {
 			case typeofTime:
 				{
-					var fncs = []func(tv time.Time) error{}
+					var fncs = []func(tv time.Time) *Error{}
 					if meta.maxTime.Valid {
-						fncs = append(fncs, func(tv time.Time) error {
+						fncs = append(fncs, func(tv time.Time) *Error {
 							if tv.After(meta.maxTime.V) {
-								return fmt.Errorf("time too late")
+								return newerr(field, meta, ErrorKindTimeTooLate).withbv(tv)
 							}
 							return nil
 						})
 					}
 					if meta.minTime.Valid {
-						fncs = append(fncs, func(tv time.Time) error {
+						fncs = append(fncs, func(tv time.Time) *Error {
 							if tv.Before(meta.minTime.V) {
-								return fmt.Errorf("time too early")
+								return newerr(field, meta, ErrorKindTimeTooEarly).withbv(tv)
 							}
 							return nil
 						})
 					}
-					do := func(ctx context.Context, tv time.Time) error {
+					do := func(ctx context.Context, tv time.Time) *Error {
 						for _, fn := range fncs {
 							if err := fn(tv); err != nil {
 								return err
 							}
 						}
 						if meta._Func != nil {
-							return meta._Func(ctx, tv)
+							if ce := meta._Func(ctx, tv); ce != nil {
+								return newerr(field, meta, ErrorKindCustom).with(tv, ce)
+							}
 						}
 						return nil
 					}
-					return func(ctx context.Context, uptr unsafe.Pointer) error {
+					return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 							return do(ctx, *((*time.Time)(unsafe.Add(uptr, field.Offset()))))
 						},
-						func(ctx context.Context, val any) error { return do(ctx, val.(time.Time)) }
+						func(ctx context.Context, val any) *Error { return do(ctx, val.(time.Time)) }
 				}
 			default:
 				{
 					if meta.scheme.gettypeinfo().GoType != gotype {
 						panic(fmt.Errorf("fv.vld: bad meta scheme, %s.%s", field.Typeinfo().GoType, field.StructField().Name))
 					}
-					return func(ctx context.Context, uptr unsafe.Pointer) error {
+					return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 							return meta.scheme.dovldptr(ctx, uptr)
-						}, func(ctx context.Context, val any) error {
+						}, func(ctx context.Context, val any) *Error {
 							return meta.scheme.dovldval(ctx, val)
 						}
 				}
@@ -260,15 +262,15 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 type _IScheme interface {
 	gettypeinfo() *lion.TypeInfo[VldFieldMeta]
 	updatemeta(ptr any, meta *VldFieldMeta)
-	dovldptr(ctx context.Context, uptr unsafe.Pointer) error
-	dovldval(ctx context.Context, val any) error
+	dovldptr(ctx context.Context, uptr unsafe.Pointer) *Error
+	dovldval(ctx context.Context, val any) *Error
 }
 
 func (scheme *_Scheme[T]) gettypeinfo() *lion.TypeInfo[VldFieldMeta] {
 	return scheme.typeinfo
 }
 
-func (scheme *_Scheme[T]) dovldptr(ctx context.Context, uptr unsafe.Pointer) error {
+func (scheme *_Scheme[T]) dovldptr(ctx context.Context, uptr unsafe.Pointer) *Error {
 	for _, vld := range scheme.vlds {
 		if err := vld.ptrfnc(ctx, unsafe.Add(uptr, vld.field.Offset())); err != nil {
 			return err
@@ -282,7 +284,7 @@ type anystruct struct {
 	valptr   unsafe.Pointer
 }
 
-func (scheme *_Scheme[T]) dovldval(ctx context.Context, val any) error {
+func (scheme *_Scheme[T]) dovldval(ctx context.Context, val any) *Error {
 	vv := reflect.ValueOf(val)
 	if vv.Kind() == reflect.Pointer {
 		return scheme.dovldptr(ctx, vv.UnsafePointer())

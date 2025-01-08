@@ -2,7 +2,6 @@ package vld
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"unsafe"
 
@@ -16,21 +15,21 @@ type _SliceHeader struct {
 }
 
 func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
-	var slicefncs = []func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) error{}
+	var slicefncs = []func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) *Error{}
 	if meta.maxSize.Valid {
 		maxs := meta.maxSize.V
-		slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) error {
+		slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) *Error {
 			if head.Len > maxs {
-				return fmt.Errorf("slice too long")
+				return newerr(field, meta, ErrorKindContainerSizeTooLarge)
 			}
 			return nil
 		})
 	}
 	if meta.minSize.Valid {
 		mins := meta.minSize.V
-		slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) error {
+		slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) *Error {
 			if head.Len < mins {
-				return fmt.Errorf("slice too short")
+				return newerr(field, meta, ErrorKindContainerSizeTooSmall)
 			}
 			return nil
 		})
@@ -41,17 +40,17 @@ func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype re
 	if eleptrfnc != nil || eleanyfnc != nil {
 		elesize := eletype.Size()
 		if perferptr(eleptrfnc, eleanyfnc, gotype.Elem()) {
-			slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) error {
+			slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) *Error {
 				for i := 0; i < head.Len; i++ {
 					eleuptr := unsafe.Add(head.Data, i*int(elesize))
 					if err := eleptrfnc(ctx, eleuptr); err != nil {
-						return err
+						return err.appendfield(field)
 					}
 				}
 				return nil
 			})
 		} else {
-			slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) error {
+			slicefncs = append(slicefncs, func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) *Error {
 				for i := 0; i < head.Len; i++ {
 					eleuptr := unsafe.Add(head.Data, i*int(elesize))
 					eleptrv := reflect.NewAt(eletype, eleuptr)
@@ -63,13 +62,13 @@ func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype re
 			})
 		}
 	}
-	do := func(ctx context.Context, suptr unsafe.Pointer) error {
+	do := func(ctx context.Context, suptr unsafe.Pointer) *Error {
 		head := *((*_SliceHeader)(suptr))
 		if uintptr(head.Data) == 0 {
 			if meta.optional {
 				return nil
 			}
-			return fmt.Errorf("nil slice")
+			return newerr(field, meta, ErrorKindNilSlice)
 		}
 
 		for _, fnc := range slicefncs {
@@ -81,16 +80,17 @@ func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype re
 
 		if meta._Func != nil {
 			sptrv := reflect.NewAt(gotype, suptr)
-			if err := meta._Func(ctx, sptrv.Elem().Interface()); err != nil {
-				return err
+			sliceany := sptrv.Elem().Interface()
+			if err := meta._Func(ctx, sliceany); err != nil {
+				return newerr(field, meta, ErrorKindCustom).with(sliceany, err)
 			}
 		}
 		return nil
 	}
-	return func(ctx context.Context, uptr unsafe.Pointer) error {
+	return func(ctx context.Context, uptr unsafe.Pointer) *Error {
 			return do(ctx, uptr)
 		},
-		func(ctx context.Context, val any) error {
+		func(ctx context.Context, val any) *Error {
 			anyptr := (*anystruct)(unsafe.Pointer(&val))
 			return do(ctx, anyptr.valptr)
 		}
