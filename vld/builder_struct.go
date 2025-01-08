@@ -21,9 +21,6 @@ func getSchemeByType(gotype reflect.Type) _IScheme {
 
 func StructMeta[T any]() *_StructBuilder[T] {
 	gotype := lion.Typeof[T]()
-	if gotype.Kind() == reflect.Pointer {
-		gotype = gotype.Elem()
-	}
 	if gotype.Kind() != reflect.Struct {
 		panic(fmt.Errorf("fv.vld: %s is not a struct type", gotype))
 	}
@@ -33,4 +30,8 @@ func StructMeta[T any]() *_StructBuilder[T] {
 
 func Struct[T any](ptr *T) *_StructBuilder[T] {
 	return StructMeta[T]().updateptr(ptr)
+}
+
+func (builder _StructBuilder[T]) ToPointer() *_PointerBuilder[*T] {
+	return PointerMeta[T]().Ele(builder.Build())
 }

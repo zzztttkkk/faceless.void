@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/zzztttkkk/faceless.void/internal"
+	"github.com/zzztttkkk/lion"
 )
 
 type _CommonBuilder[T any, S any] struct {
@@ -36,25 +37,32 @@ func (builder *_CommonBuilder[T, S]) update(k string, v any, update func(prev an
 	return builder.self()
 }
 
-func (builder *_CommonBuilder[T, S]) Optional() *S {
+func (builder *_CommonBuilder[T, S]) optional() *S {
 	return builder.set("optional", true)
 }
 
 func (builder *_CommonBuilder[T, S]) Func(fnc func(ctx context.Context, v T) error) *S {
 	return builder.update("func", fnc, func(prev any) any {
-		prevfn := prev.(func(ctx context.Context, v T) error)
-		return func(ctx context.Context, v T) error {
+		if prev == nil {
+			return func(ctx context.Context, v any) error {
+				return fnc(ctx, v.(T))
+			}
+		}
+		prevfn := prev.(func(ctx context.Context, v any) error)
+		return func(ctx context.Context, v any) error {
 			err := prevfn(ctx, v)
 			if err != nil {
 				return err
 			}
-			return fnc(ctx, v)
+			return fnc(ctx, v.(T))
 		}
 	})
 }
 
 func (builder *_CommonBuilder[T, S]) Build() *VldFieldMeta {
-	obj := &VldFieldMeta{}
+	obj := &VldFieldMeta{
+		gotype: lion.Typeof[T](),
+	}
 	for _, pair := range builder.pairs {
 		switch pair.Key {
 		case "optional":
@@ -140,6 +148,10 @@ func (builder *_CommonBuilder[T, S]) Build() *VldFieldMeta {
 }
 
 func (builder *_CommonBuilder[T, S]) With(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+
 	sv := ctx.Value(internal.CtxKeyForVldScheme)
 	if sv == nil {
 		panic(fmt.Errorf("fv.vld: empty scheme"))

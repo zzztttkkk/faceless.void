@@ -13,7 +13,11 @@ import (
 	"github.com/zzztttkkk/lion"
 )
 
+type _CustomAnyVldFunc func(ctx context.Context, v any) error
+
 type VldFieldMeta struct {
+	gotype reflect.Type
+
 	optional bool
 
 	// string
@@ -46,7 +50,13 @@ type VldFieldMeta struct {
 	scheme _IScheme
 
 	// custom
-	_Func func(ctx context.Context, v any) error
+	_Func _CustomAnyVldFunc
+}
+
+func (meta *VldFieldMeta) Clone() *VldFieldMeta {
+	nptr := &VldFieldMeta{}
+	*nptr = *meta
+	return nptr
 }
 
 func init() {
@@ -123,34 +133,26 @@ type _ValVldFunc = func(ctx context.Context, val any) error
 func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	EnsureSimpleContainer := func() {
 		switch gotype.Elem().Kind() {
-		case reflect.Array, reflect.Slice, reflect.Map:
+		case reflect.Slice, reflect.Map:
 			{
 				panic(fmt.Errorf("fv.vld: nested container is not supported, %s", gotype))
 			}
-		case reflect.Pointer:
-			{
-				// see fcuntion `makeSliceVld`
-				panic(fmt.Errorf("fv.vld: change ele kind to value, %s", gotype))
-			}
 		}
-
 		if gotype.Kind() == reflect.Map {
-			switch gotype.Key().Kind() {
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-				reflect.String, reflect.Struct, reflect.Bool:
-				{
-					break
-				}
-			default:
-				{
-					panic(fmt.Errorf("fv.vld: unsupported key kind, %s", gotype))
-				}
+			if !lion.Kinds.IsValue(gotype.Key().Kind()) || gotype.Key().Kind() == reflect.Struct {
+				panic(fmt.Errorf("fv.vld: unsupported key kind, %s", gotype))
 			}
 		}
 	}
 	if meta == nil {
 		return nil, nil
+	}
+	if meta.gotype != gotype {
+		panic(fmt.Errorf(
+			"fv.vld: bad meta gotype, field path: `%s.%s`. expected `%s`, but got `%s`.",
+			field.Typeinfo().GoType, field.StructField().Name,
+			gotype, meta.gotype,
+		))
 	}
 
 	switch gotype.Kind() {

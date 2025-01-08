@@ -39,6 +39,6 @@ func PairsUpdate[K comparable](pairs *[]Pair[K], key K, val any, update func(pre
 		}
 	}
 	if !found {
-		*pairs = append(*pairs, Pair[K]{Key: key, Val: val})
+		*pairs = append(*pairs, Pair[K]{Key: key, Val: update(nil)})
 	}
 }

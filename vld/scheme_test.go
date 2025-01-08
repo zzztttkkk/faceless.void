@@ -3,9 +3,7 @@ package vld_test
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
-	"unsafe"
 
 	"github.com/zzztttkkk/faceless.void/vld"
 	"github.com/zzztttkkk/lion"
@@ -23,36 +21,41 @@ func init() {
 }
 
 type Params struct {
-	A  int
-	B  string
-	C  []string
-	D  map[int64]string
-	EP *E
-	ES []E
-	EM map[string]E
+	A      int
+	B      string
+	C      []string
+	D      map[int64]string
+	EPtr   *E
+	ESlice []E
+	EMmap  map[string]E
 }
 
 func init() {
 	lion.AppendType[map[int64]string]()
 	lion.AppendType[E]()
+	lion.AppendType[map[string]E]()
 
 	vld.SchemeOf[Params]().Scope(func(ctx context.Context, mptr *Params) {
+		noemptystring := vld.StringMeta().NoEmpty().Build()
+
 		vld.Int(&mptr.A).Min(1).Max(23).With(ctx)
 
 		vld.String(&mptr.B).NoEmpty().With(ctx)
 
 		vld.Slice(&mptr.C).NoEmpty().
-			Ele(vld.StringMeta().NoEmpty().Build()).
+			Ele(noemptystring).
 			With(ctx)
 
-		vld.Map(&mptr.D).
+		vld.Map(&mptr.D).NoEmpty().
 			Ele(vld.StringMeta().RegexpString(`^\d+$`).Build()).
 			Key(vld.IntMeta[int64]().Min(12).Build()).
 			With(ctx)
 
-		vld.Struct(&mptr.EP).With(ctx)
-		vld.Slice(&mptr.ES).NoEmpty().Ele(vld.StructMeta[E]().Build()).With(ctx)
-		vld.Map(&mptr.EM).Ele(vld.StructMeta[E]().Build()).With(ctx)
+		emate := vld.StructMeta[E]().Build()
+
+		vld.Pointer(&mptr.EPtr).Ele(emate).With(ctx)
+		vld.Slice(&mptr.ESlice).NoEmpty().Ele(emate).With(ctx)
+		vld.Map(&mptr.EMmap).NoEmpty().Ele(emate).Key(noemptystring).With(ctx)
 	})
 }
 
@@ -64,59 +67,99 @@ func TestVld(t *testing.T) {
 	params.D = map[int64]string{
 		13: "3444",
 	}
-	params.EP = &E{
+	params.EPtr = &E{
 		Email: "a@x.com",
 	}
-	params.ES = []E{
+	params.ESlice = []E{
 		{Email: "vvv@xdd.com"},
 	}
-	params.EM = map[string]E{
+	params.EMmap = map[string]E{
 		"xx": {Email: "xxxx@q.com"},
 	}
 	err := vld.Vld(context.Background(), &params)
 	fmt.Println(err)
 }
 
-func TestSlice(t *testing.T) {
-	var x []int64 = []int64{1212, 456, 67}
+type EPTest struct {
+	EV   E
+	EPtr *E
+}
 
-	eachslice(unsafe.Pointer(&x), lion.Typeof[int64](), func(euptr unsafe.Pointer) {
-		fmt.Println(euptr, *((*int64)(euptr)))
-	})
+func init() {
+	vld.SchemeOf[EPTest]().Scope(func(ctx context.Context, mptr *EPTest) {
+		vld.Struct(&mptr.EV).With(ctx)
 
-	var es []*E = []*E{
-		{Email: "xxxx"},
-		{A2: "a2"},
-	}
-	eachslice(unsafe.Pointer(&es), lion.Typeof[*E](), func(euptr unsafe.Pointer) {
-		fmt.Println(euptr, *((**E)(euptr)))
-	})
-
-	eachslicet(&es, func(eptr **E) {
-		fmt.Println(*eptr)
+		vld.Pointer(&mptr.EPtr).Ele(vld.StructMeta[E]().Build()).With(ctx)
 	})
 }
 
-func eachslice(sliceptr unsafe.Pointer, eletype reflect.Type, elefnc func(euptr unsafe.Pointer)) {
-	sh := *(*reflect.SliceHeader)(sliceptr)
-	if sh.Data == 0 {
-		panic("nil slice")
+func TestEPTest(t *testing.T) {
+	ept := EPTest{
+		EV:   E{Email: "xxx@qq.com"},
+		EPtr: &E{Email: "ff@w.com"},
 	}
-	elesize := eletype.Size()
-	begin := unsafe.Pointer(sh.Data)
-	for i := 0; i < sh.Len; i++ {
-		elefnc(unsafe.Add(begin, i*int(elesize)))
-	}
+	fmt.Println(vld.Vld(context.Background(), &ept))
 }
 
-func eachslicet[T any](sliceptr *[]T, elefnc func(eptr *T)) {
-	sh := *(*reflect.SliceHeader)(unsafe.Pointer(sliceptr))
-	if sh.Data == 0 {
-		panic("nil slice")
+type ESTest struct {
+	ESlice    []E
+	EPtrSlice []*E
+}
+
+func init() {
+	vld.SchemeOf[ESTest]().Scope(func(ctx context.Context, mptr *ESTest) {
+		emate := vld.StructMeta[E]().Build()
+		eptrmeta := vld.StructMeta[E]().ToPointer().Build()
+
+		vld.Slice(&mptr.ESlice).NoEmpty().Ele(emate).Func(func(ctx context.Context, v []E) error {
+			fmt.Println(v)
+			return nil
+		}).With(ctx)
+
+		vld.Slice(&mptr.EPtrSlice).NoEmpty().Ele(eptrmeta).Func(func(ctx context.Context, v []*E) error {
+			for _, e := range v {
+				fmt.Println(e)
+			}
+			return nil
+		}).With(ctx)
+	})
+}
+
+func TestESTVld(t *testing.T) {
+	var est = ESTest{
+		ESlice: []E{
+			{Email: "yyy@q.com"},
+		},
+		EPtrSlice: []*E{
+			{Email: "xxx@q.com"},
+		},
 	}
-	elesize := (lion.Typeof[T]()).Size()
-	begin := unsafe.Pointer(sh.Data)
-	for i := 0; i < sh.Len; i++ {
-		elefnc((*T)(unsafe.Add(begin, i*int(elesize))))
+	fmt.Println(vld.Vld(context.Background(), &est))
+}
+
+type EMTest struct {
+	EValMap map[string]E
+	EPtrMap map[string]*E
+}
+
+func init() {
+	vld.SchemeOf[EMTest]().Scope(func(ctx context.Context, mptr *EMTest) {
+		emb := vld.StructMeta[E]()
+
+		vld.Map(&mptr.EValMap).Ele(emb.Build()).With(ctx)
+
+		vld.Map(&mptr.EPtrMap).Ele(emb.ToPointer().Build()).With(ctx)
+	})
+}
+
+func TestEMTest(t *testing.T) {
+	var emt = EMTest{
+		EValMap: map[string]E{
+			"x": {Email: "xxx@w.com"},
+		},
+		EPtrMap: map[string]*E{
+			"y": {Email: "ccc@s.com"},
+		},
 	}
+	fmt.Println(vld.Vld(context.Background(), &emt))
 }

@@ -28,3 +28,7 @@ func (builder *_SliceBuidler[T]) MaxSize(maxl int) *_SliceBuidler[T] {
 func (builder *_SliceBuidler[T]) NoEmpty() *_SliceBuidler[T] {
 	return builder.MinSize(1)
 }
+
+func (builder *_SliceBuidler[T]) Optional() *_SliceBuidler[T] {
+	return builder.optional()
+}

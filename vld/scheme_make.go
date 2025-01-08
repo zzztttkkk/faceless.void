@@ -112,7 +112,7 @@ func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta.regexp != nil {
 		fncs = append(fncs, func(v string) error {
 			if !meta.regexp.MatchString(v) {
-				return fmt.Errorf("string not match")
+				return fmt.Errorf("string not match, %s", v)
 			}
 			return nil
 		})

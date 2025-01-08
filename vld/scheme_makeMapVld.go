@@ -29,17 +29,47 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 			return nil
 		})
 	}
+
+	eletype := gotype.Elem()
+	eleisptr := eletype.Kind() == reflect.Pointer
+
 	var eleptrvld _PtrVldFunc
 	var elevalvld _ValVldFunc
 	var keyvld _ValVldFunc
 	if meta.ele != nil {
-		eleptrvld, elevalvld = makeVldFunction(field, meta.ele, gotype.Elem())
+		eleptrvld, elevalvld = makeVldFunction(field, meta.ele, eletype)
 	}
 	if meta.key != nil {
 		_, keyvld = makeVldFunction(field, meta.key, gotype.Key())
 	}
 	if elevalvld != nil || eleptrvld != nil {
-		isperferptr := perferptr(eleptrvld, elevalvld, gotype.Elem())
+		isperferptr := perferptr(eleptrvld, elevalvld, eletype)
+
+		var elevvfnc func(ctx context.Context, v reflect.Value) error
+		if isperferptr {
+			elevvfnc = func(ctx context.Context, vv reflect.Value) error {
+				var eleuptr unsafe.Pointer
+				if eleisptr {
+					valany := vv.Interface()
+					valanyptr := (*anystruct)(unsafe.Pointer(&valany))
+					elevptr := valanyptr.valptr
+					eleuptr = unsafe.Pointer(&elevptr)
+				} else {
+					valany := vv.Interface()
+					valanyptr := (*anystruct)(unsafe.Pointer(&valany))
+					eleuptr = valanyptr.valptr
+				}
+				if ve := eleptrvld(ctx, eleuptr); ve != nil {
+					return ve
+				}
+				return nil
+			}
+		} else {
+			elevvfnc = func(ctx context.Context, val reflect.Value) error {
+				return elevalvld(ctx, val.Interface())
+			}
+		}
+
 		if keyvld != nil {
 			if isperferptr {
 				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
@@ -49,9 +79,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 						if ke := keyvld(ctx, key.Interface()); ke != nil {
 							return ke
 						}
-						valany := iter.Value().Interface()
-						valanyptr := (*anystruct)(unsafe.Pointer(&valany))
-						if ve := eleptrvld(ctx, valanyptr.valptr); ve != nil {
+						if ve := elevvfnc(ctx, iter.Value()); ve != nil {
 							return ve
 						}
 					}
@@ -65,8 +93,7 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 						if ke := keyvld(ctx, key.Interface()); ke != nil {
 							return ke
 						}
-						val := iter.Value()
-						if ve := elevalvld(ctx, val.Interface()); ve != nil {
+						if ve := elevvfnc(ctx, iter.Value()); ve != nil {
 							return ve
 						}
 					}
@@ -74,30 +101,15 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 				})
 			}
 		} else {
-			if isperferptr {
-				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
-					iter := sv.MapRange()
-					for iter.Next() {
-						valany := iter.Value().Interface()
-						valanyptr := (*anystruct)(unsafe.Pointer(&valany))
-						if ve := eleptrvld(ctx, valanyptr.valptr); ve != nil {
-							return ve
-						}
+			mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
+				iter := sv.MapRange()
+				for iter.Next() {
+					if ve := elevvfnc(ctx, iter.Value()); ve != nil {
+						return ve
 					}
-					return nil
-				})
-			} else {
-				mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
-					iter := sv.MapRange()
-					for iter.Next() {
-						val := iter.Value()
-						if ve := elevalvld(ctx, val.Interface()); ve != nil {
-							return ve
-						}
-					}
-					return nil
-				})
-			}
+				}
+				return nil
+			})
 		}
 	} else if keyvld != nil {
 		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {

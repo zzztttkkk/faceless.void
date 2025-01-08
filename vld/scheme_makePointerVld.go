@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PerferPtrVldSize = uintptr(1)
+	PerferPtrVldSizeThreshold = uintptr(0)
 )
 
 func perferptr(ptrfnc _PtrVldFunc, valfnc _ValVldFunc, eletype reflect.Type) bool {
@@ -20,15 +20,15 @@ func perferptr(ptrfnc _PtrVldFunc, valfnc _ValVldFunc, eletype reflect.Type) boo
 	if valfnc == nil {
 		return true
 	}
-	return eletype.Size() > PerferPtrVldSize
+	return eletype.Size() > PerferPtrVldSizeThreshold
 }
 
 func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	eletype := gotype.Elem()
-	if eletype.Kind() == reflect.Pointer {
-		panic(fmt.Errorf("fv.vld: nested pointer is not supported"))
+	if !lion.Kinds.IsValue(eletype.Kind()) {
+		panic(fmt.Errorf("fv.vld: pointer ele is not value, %s", gotype))
 	}
-	ptrfnc, valfnc := makeVldFunction(field, meta, eletype)
+	ptrfnc, valfnc := makeVldFunction(field, meta.ele, eletype)
 	if ptrfnc == nil && valfnc == nil {
 		return nil, nil
 	}
@@ -40,7 +40,7 @@ func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype 
 				if meta.optional {
 					return nil
 				}
-				return fmt.Errorf("missing required")
+				return fmt.Errorf("nil pointer")
 			}
 			return ptrfnc(ctx, ptrv.UnsafePointer())
 		}
