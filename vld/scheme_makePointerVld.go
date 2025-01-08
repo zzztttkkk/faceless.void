@@ -9,9 +9,7 @@ import (
 	"github.com/zzztttkkk/lion"
 )
 
-const (
-	PerferPtrVldSizeThreshold = uintptr(0)
-)
+
 
 func perferptr(ptrfnc _PtrVldFunc, valfnc _ValVldFunc, eletype reflect.Type) bool {
 	if ptrfnc == nil {

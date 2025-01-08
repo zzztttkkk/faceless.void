@@ -2,19 +2,22 @@ package vld
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"unsafe"
 
+	"github.com/zzztttkkk/faceless.void/internal"
 	"github.com/zzztttkkk/lion"
 )
 
-func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
-	if meta == nil {
-		meta = field.Metainfo()
-	}
+type _MVType interface {
+	~int64 | ~uint64
+}
+
+func makeIntOrUintVld[T lion.IntType, MV _MVType](_field *lion.Field[VldFieldMeta], meta *VldFieldMeta, minv sql.Null[MV], maxv sql.Null[MV], ranges []MV) (_PtrVldFunc, _ValVldFunc) {
 	var fncs = []func(iv T) error{}
-	if meta.maxInt.Valid {
-		maxv := T(meta.maxInt.V)
+	if maxv.Valid {
+		maxv := T(maxv.V)
 		fncs = append(fncs, func(iv T) error {
 			if iv > maxv {
 				return fmt.Errorf("int gt max")
@@ -22,14 +25,39 @@ func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFiel
 			return nil
 		})
 	}
-	if meta.minInt.Valid {
-		minv := T(meta.minInt.V)
+	if minv.Valid {
+		minv := T(minv.V)
 		fncs = append(fncs, func(iv T) error {
 			if iv < minv {
 				return fmt.Errorf("int lt min")
 			}
 			return nil
 		})
+	}
+	if len(ranges) > 0 {
+		var rangs []T
+		for _, v := range ranges {
+			rangs = append(rangs, T(v))
+		}
+		if len(rangs) > 16 {
+			rangeset := internal.MakeSet(rangs)
+			fncs = append(fncs, func(iv T) error {
+				_, ok := rangeset[iv]
+				if ok {
+					return nil
+				}
+				return fmt.Errorf("int not in range")
+			})
+		} else {
+			fncs = append(fncs, func(iv T) error {
+				for _, rv := range rangs {
+					if iv == rv {
+						return nil
+					}
+				}
+				return fmt.Errorf("int not in range")
+			})
+		}
 	}
 
 	do := func(ctx context.Context, iv T) error {
@@ -47,45 +75,18 @@ func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFiel
 		func(ctx context.Context, val any) error { return do(ctx, val.(T)) }
 }
 
+func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
+	if meta == nil {
+		meta = field.Metainfo()
+	}
+	return makeIntOrUintVld[T](field, meta, meta.maxInt, meta.minInt, meta.intRanges)
+}
+
 func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta == nil {
 		meta = field.Metainfo()
 	}
-	var fncs = []func(iv T) error{}
-	if meta.maxUint.Valid {
-		maxv := T(meta.maxUint.V)
-		fncs = append(fncs, func(iv T) error {
-			if iv > maxv {
-				return fmt.Errorf("uint gt max")
-			}
-			return nil
-		})
-	}
-	if meta.minUint.Valid {
-		minv := T(meta.minUint.V)
-		fncs = append(fncs, func(iv T) error {
-			if iv < minv {
-				return fmt.Errorf("uint lt min")
-			}
-			return nil
-		})
-	}
-	do := func(ctx context.Context, iv T) error {
-		for _, fn := range fncs {
-			if err := fn(iv); err != nil {
-				return err
-			}
-		}
-		if meta._Func != nil {
-			return meta._Func(ctx, iv)
-		}
-		return nil
-	}
-	return func(ctx context.Context, uptr unsafe.Pointer) error {
-			return do(ctx, *((*T)(uptr)))
-		}, func(ctx context.Context, val any) error {
-			return do(ctx, val.(T))
-		}
+	return makeIntOrUintVld[T](field, meta, meta.maxUint, meta.minUint, meta.uintRanges)
 }
 
 func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
