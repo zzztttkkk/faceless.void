@@ -1,6 +1,6 @@
 import argparse
 
-from cover import do_cover
+from fvscover import do_cover
 
 parser = argparse.ArgumentParser(prog="fv.scripts", description="fv dev scripts")
 
