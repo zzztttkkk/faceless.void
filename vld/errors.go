@@ -42,9 +42,10 @@ func init() {
 }
 
 type Error struct {
-	Kind     ErrorKind
 	Field    *lion.Field[VldFieldMeta]
+	Kind     ErrorKind
 	BadValue any
+	RawError error
 }
 
 var (
@@ -53,8 +54,8 @@ var (
 
 func (e *Error) Error() string {
 	return fmt.Sprintf(
-		"fv.vld: %s.%s, %s, %v",
+		"fv.vld: %s.%s. %s, %v, %s",
 		e.Field.Typeinfo().GoType.Name(), e.Field.StructField().Name,
-		e.Kind, e.BadValue,
+		e.Kind, e.BadValue, e.RawError,
 	)
 }

@@ -57,6 +57,9 @@ func init() {
 		vld.Slice(&mptr.ESlice).NoEmpty().Ele(emate).With(ctx)
 		vld.Map(&mptr.EMmap).NoEmpty().Ele(emate).Key(noemptystring).With(ctx)
 	})
+
+	vld.StringMeta().EnumSlice(vld.AllErrorKinds)
+	vld.IntMeta[int64]().EnumSlice(vld.AllErrorKinds)
 }
 
 func TestVld(t *testing.T) {
@@ -65,7 +68,7 @@ func TestVld(t *testing.T) {
 	params.B = "xx"
 	params.C = []string{"ccc"}
 	params.D = map[int64]string{
-		13: "3444",
+		12: "3444",
 	}
 	params.EPtr = &E{
 		Email: "a@x.com",

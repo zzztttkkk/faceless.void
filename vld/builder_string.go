@@ -1,6 +1,8 @@
 package vld
 
 import (
+	"fmt"
+	"reflect"
 	"regexp"
 	"sync"
 )
@@ -57,4 +59,22 @@ func (builder *stringBuilder) NoEmpty() *stringBuilder {
 
 func (builder *stringBuilder) Enum(names ...string) *stringBuilder {
 	return builder.set("stringranges", names)
+}
+
+func (builder *stringBuilder) EnumSlice(slicev any) *stringBuilder {
+	v := reflect.ValueOf(slicev)
+	if v.Kind() != reflect.Slice || !v.IsValid() {
+		panic(fmt.Errorf("fv.vld: param `slicev` is not a valid slice"))
+	}
+	elev := reflect.New(v.Type().Elem())
+	_, ok := elev.Interface().(fmt.Stringer)
+	if !ok {
+		panic(fmt.Errorf("fv.vld: slice ele can not cast to fmt.Stringer"))
+	}
+	var names []string
+	for i := 0; i < v.Len(); i++ {
+		ev := v.Index(i)
+		names = append(names, ((ev.Interface()).(fmt.Stringer)).String())
+	}
+	return builder.Enum(names...)
 }

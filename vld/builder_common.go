@@ -118,6 +118,12 @@ func (builder *_CommonBuilder[T, S]) Build() *VldFieldMeta {
 				iv, _ := strconv.ParseUint(sv, 10, 64)
 				obj.maxUint = sql.Null[uint64]{Valid: true, V: iv}
 			}
+		case "intranges":
+			{
+			}
+		case "intranges.u":
+			{
+			}
 		case "mintime":
 			{
 				obj.minTime = sql.Null[time.Time]{V: pair.Val.(time.Time), Valid: true}

@@ -2,6 +2,7 @@ package vld
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/zzztttkkk/lion"
 )
@@ -24,6 +25,22 @@ func (builder *_IntBuilder[T]) Min(minv T) *_IntBuilder[T] {
 
 func (builder *_IntBuilder[T]) Max(maxv T) *_IntBuilder[T] {
 	return builder.set(builder.wrapkey("maxv"), maxv)
+}
+
+func (builder *_IntBuilder[T]) Enums(vals ...T) *_IntBuilder[T] {
+	return builder.set(builder.wrapkey("intranges"), vals)
+}
+
+func (builder *_IntBuilder[T]) EnumSlice(slicev any) *_IntBuilder[T] {
+	v := reflect.ValueOf(slicev)
+	if v.Kind() != reflect.Slice || !v.IsValid() {
+		panic(fmt.Errorf("fv.vld: param `slicev` is not a valid slice"))
+	}
+
+	elev := reflect.New(v.Type().Elem()).Elem()
+	fmt.Println(elev.Interface())
+
+	return builder.Enums()
 }
 
 func IntMeta[T lion.IntType]() *_IntBuilder[T] {
