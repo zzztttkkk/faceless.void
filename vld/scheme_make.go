@@ -3,7 +3,6 @@ package vld
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"unsafe"
 
 	"github.com/zzztttkkk/faceless.void/internal"
@@ -14,13 +13,13 @@ type _MVType interface {
 	~int64 | ~uint64
 }
 
-func makeIntOrUintVld[T lion.IntType, MV _MVType](_field *lion.Field[VldFieldMeta], meta *VldFieldMeta, minv sql.Null[MV], maxv sql.Null[MV], ranges []MV) (_PtrVldFunc, _ValVldFunc) {
+func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta], meta *VldFieldMeta, minv sql.Null[MV], maxv sql.Null[MV], ranges []MV) (_PtrVldFunc, _ValVldFunc) {
 	var fncs = []func(iv T) error{}
 	if maxv.Valid {
 		maxv := T(maxv.V)
 		fncs = append(fncs, func(iv T) error {
 			if iv > maxv {
-				return fmt.Errorf("int gt max")
+				return newerr(field, meta, ErrorKindIntGtMax).withbv(iv)
 			}
 			return nil
 		})
@@ -29,7 +28,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](_field *lion.Field[VldFieldMet
 		minv := T(minv.V)
 		fncs = append(fncs, func(iv T) error {
 			if iv < minv {
-				return fmt.Errorf("int lt min")
+				return newerr(field, meta, ErrorKindIntLtMin).withbv(iv)
 			}
 			return nil
 		})
@@ -46,7 +45,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](_field *lion.Field[VldFieldMet
 				if ok {
 					return nil
 				}
-				return fmt.Errorf("int not in range")
+				return newerr(field, meta, ErrorKindIntNotInRange).withbv(iv)
 			})
 		} else {
 			fncs = append(fncs, func(iv T) error {
@@ -55,7 +54,7 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](_field *lion.Field[VldFieldMet
 						return nil
 					}
 				}
-				return fmt.Errorf("int not in range")
+				return newerr(field, meta, ErrorKindIntNotInRange).withbv(iv)
 			})
 		}
 	}
@@ -66,8 +65,11 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](_field *lion.Field[VldFieldMet
 				return err
 			}
 		}
+
 		if meta._Func != nil {
-			return meta._Func(ctx, iv)
+			if err := meta._Func(ctx, iv); err != nil {
+				return newerr(field, meta, ErrorKindCustom).withre(err)
+			}
 		}
 		return nil
 	}
@@ -79,24 +81,25 @@ func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFiel
 	if meta == nil {
 		meta = field.Metainfo()
 	}
-	return makeIntOrUintVld[T](field, meta, meta.maxInt, meta.minInt, meta.intRanges)
+	return makeIntOrUintVld[T](field, meta, meta.minInt, meta.maxInt, meta.intRanges)
 }
 
 func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta == nil {
 		meta = field.Metainfo()
 	}
-	return makeIntOrUintVld[T](field, meta, meta.maxUint, meta.minUint, meta.uintRanges)
+	return makeIntOrUintVld[T](field, meta, meta.minUint, meta.maxUint, meta.uintRanges)
 }
 
-func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
+func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	var fncs = []func(v string) error{}
 
 	if meta.maxLength.Valid {
 		maxl := meta.maxLength.V
 		fncs = append(fncs, func(v string) error {
-			if len(v) > maxl {
-				return fmt.Errorf("string too long")
+			lv := len(v)
+			if lv > maxl {
+				return newerr(field, meta, ErrorKindStringTooLong).withbv(lv)
 			}
 			return nil
 		})
@@ -104,8 +107,9 @@ func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta.minLength.Valid {
 		minl := meta.minLength.V
 		fncs = append(fncs, func(v string) error {
-			if len(v) < minl {
-				return fmt.Errorf("string too short")
+			lv := len(v)
+			if lv < minl {
+				return newerr(field, meta, ErrorKindStringTooShort).withbv(lv)
 			}
 			return nil
 		})
@@ -113,7 +117,7 @@ func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta.regexp != nil {
 		fncs = append(fncs, func(v string) error {
 			if !meta.regexp.MatchString(v) {
-				return fmt.Errorf("string not match, %s", v)
+				return newerr(field, meta, ErrorKindStringNotMatched).withbv(v)
 			}
 			return nil
 		})
@@ -129,7 +133,7 @@ func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 				if ok {
 					return nil
 				}
-				return fmt.Errorf("string not in range")
+				return newerr(field, meta, ErrorKindStringNotInRanges).withbv(v)
 			})
 		} else {
 			fncs = append(fncs, func(v string) error {
@@ -138,7 +142,7 @@ func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 						return nil
 					}
 				}
-				return fmt.Errorf("string not in range")
+				return newerr(field, meta, ErrorKindStringNotInRanges).withbv(v)
 			})
 		}
 	}
@@ -150,7 +154,9 @@ func makeStringVld(meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 			}
 		}
 		if meta._Func != nil {
-			return meta._Func(ctx, fv)
+			if ce := meta._Func(ctx, fv); ce != nil {
+				return newerr(field, meta, ErrorKindCustom).with(fv, ce)
+			}
 		}
 		return nil
 	}

@@ -77,7 +77,7 @@ func TestVld(t *testing.T) {
 		{Email: "vvv@xdd.com"},
 	}
 	params.EMmap = map[string]E{
-		"xx": {Email: "xxxx@q.com"},
+		"xx": {Email: "xxxxq.com"},
 	}
 	err := vld.Vld(context.Background(), &params)
 	fmt.Println(err)

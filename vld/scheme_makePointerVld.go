@@ -9,8 +9,6 @@ import (
 	"github.com/zzztttkkk/lion"
 )
 
-
-
 func perferptr(ptrfnc _PtrVldFunc, valfnc _ValVldFunc, eletype reflect.Type) bool {
 	if ptrfnc == nil {
 		return false
@@ -38,7 +36,7 @@ func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype 
 				if meta.optional {
 					return nil
 				}
-				return fmt.Errorf("nil pointer")
+				return &Error{Field: field, Kind: ErrorKindNilPointer}
 			}
 			return ptrfnc(ctx, ptrv.UnsafePointer())
 		}

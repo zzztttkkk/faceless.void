@@ -14,8 +14,9 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 	if meta.maxSize.Valid {
 		maxs := meta.maxSize.V
 		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
-			if sv.Len() > maxs {
-				return fmt.Errorf("map too long")
+			lv := sv.Len()
+			if lv > maxs {
+				return newerr(field, meta, ErrorKindContainerSizeTooLarge).withbv(lv)
 			}
 			return nil
 		})
@@ -23,8 +24,9 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 	if meta.minSize.Valid {
 		mins := meta.minSize.V
 		mapfncs = append(mapfncs, func(ctx context.Context, sv reflect.Value) error {
-			if sv.Len() < mins {
-				return fmt.Errorf("map too short")
+			lv := sv.Len()
+			if lv < mins {
+				return newerr(field, meta, ErrorKindContainerSizeTooSmall).withbv(lv)
 			}
 			return nil
 		})
@@ -137,7 +139,10 @@ func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype refl
 			}
 		}
 		if meta._Func != nil {
-			return meta._Func(ctx, mapv.Interface())
+			mapany := mapv.Interface()
+			if ce := meta._Func(ctx, mapany); ce != nil {
+				return newerr(field, meta, ErrorKindCustom).with(mapany, ce)
+			}
 		}
 		return nil
 	}

@@ -158,7 +158,7 @@ func makeVldFunction(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype
 	switch gotype.Kind() {
 	case reflect.String:
 		{
-			return makeStringVld(meta)
+			return makeStringVld(field, meta)
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		{

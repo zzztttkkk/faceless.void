@@ -10,8 +10,8 @@ func (ev ErrorKind) String() string {
 			return "MissingRequired"
 		}
 		
-		case ErrorKindCustomFunc : {
-			return "CustomFunc"
+		case ErrorKindCustom : {
+			return "Custom"
 		}
 		
 		case ErrorKindIntLtMin : {
@@ -50,6 +50,10 @@ func (ev ErrorKind) String() string {
 			return "ContainerSizeTooSmall"
 		}
 		
+		case ErrorKindNilPointer : {
+			return "NilPointer"
+		}
+		
 		default: {
 			panic(fmt.Errorf("vld.ErrorKind: unknown enum value, %d", ev))
 		} 
@@ -62,7 +66,7 @@ func init(){
 	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindMissingRequired)
 	
-	AllErrorKinds = append(AllErrorKinds, ErrorKindCustomFunc)
+	AllErrorKinds = append(AllErrorKinds, ErrorKindCustom)
 	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindIntLtMin)
 	
@@ -81,6 +85,8 @@ func init(){
 	AllErrorKinds = append(AllErrorKinds, ErrorKindContainerSizeTooLarge)
 	
 	AllErrorKinds = append(AllErrorKinds, ErrorKindContainerSizeTooSmall)
+	
+	AllErrorKinds = append(AllErrorKinds, ErrorKindNilPointer)
 	
 }
 
