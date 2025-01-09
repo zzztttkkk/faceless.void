@@ -41,11 +41,12 @@ var (
 )
 
 func init() {
-	enums.Generate(func() *enums.EnumOptions[ErrorKind] {
-		return &enums.EnumOptions[ErrorKind]{
-			NamePrefix:   "ErrorKind",
-			GenAllSlice:  true,
-			AllSliceName: "AllErrorKinds",
+	enums.Generate(func() *enums.Options[ErrorKind] {
+		return &enums.Options[ErrorKind]{
+			RemoveCommonPrefix: true,
+			AllSlice:           true,
+			AllSliceName:       "AllErrorKinds",
+			NameOverwrites: map[ErrorKind]string{},
 		}
 	})
 }
