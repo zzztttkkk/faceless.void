@@ -19,7 +19,7 @@ func perferptr(ptrfnc _PtrVldFunc, valfnc _ValVldFunc, eletype reflect.Type) boo
 	return eletype.Size() > PerferPtrVldSizeThreshold
 }
 
-func makePointerVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
+func makePointerVld(field *lion.Field, meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	eletype := gotype.Elem()
 	if !lion.Kinds.IsValue(eletype.Kind()) {
 		panic(fmt.Errorf("fv.vld: pointer ele is not value, %s", gotype))

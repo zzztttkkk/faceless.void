@@ -8,7 +8,7 @@ import (
 	"github.com/zzztttkkk/lion"
 )
 
-func makeMapVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
+func makeMapVld(field *lion.Field, meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	var mapfncs = []func(ctx context.Context, sv reflect.Value) *Error{}
 	if meta.maxSize.Valid {
 		maxs := meta.maxSize.V

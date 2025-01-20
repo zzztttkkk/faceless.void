@@ -13,7 +13,7 @@ type _MVType interface {
 	~int64 | ~uint64
 }
 
-func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta], meta *VldFieldMeta, minv sql.Null[MV], maxv sql.Null[MV], ranges []MV) (_PtrVldFunc, _ValVldFunc) {
+func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field, meta *VldFieldMeta, minv sql.Null[MV], maxv sql.Null[MV], ranges []MV) (_PtrVldFunc, _ValVldFunc) {
 	var fncs = []func(iv T) *Error{}
 	if maxv.Valid {
 		maxv := T(maxv.V)
@@ -77,21 +77,21 @@ func makeIntOrUintVld[T lion.IntType, MV _MVType](field *lion.Field[VldFieldMeta
 		func(ctx context.Context, val any) *Error { return do(ctx, val.(T)) }
 }
 
-func makeIntVld[T lion.SingedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
+func makeIntVld[T lion.SingedInt](field *lion.Field, meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta == nil {
-		meta = field.Metainfo()
+		meta = lion.MetaOf[VldFieldMeta](field)
 	}
 	return makeIntOrUintVld[T](field, meta, meta.minInt, meta.maxInt, meta.intRanges)
 }
 
-func makeUintVld[T lion.UnsignedInt](field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
+func makeUintVld[T lion.UnsignedInt](field *lion.Field, meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	if meta == nil {
-		meta = field.Metainfo()
+		meta = lion.MetaOf[VldFieldMeta](field)
 	}
 	return makeIntOrUintVld[T](field, meta, meta.minUint, meta.maxUint, meta.uintRanges)
 }
 
-func makeStringVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
+func makeStringVld(field *lion.Field, meta *VldFieldMeta) (_PtrVldFunc, _ValVldFunc) {
 	var fncs = []func(v string) *Error{}
 
 	if meta.maxLength.Valid {

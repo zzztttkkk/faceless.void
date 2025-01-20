@@ -14,7 +14,7 @@ type _SliceHeader struct {
 	Cap  int
 }
 
-func makeSliceVld(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
+func makeSliceVld(field *lion.Field, meta *VldFieldMeta, gotype reflect.Type) (_PtrVldFunc, _ValVldFunc) {
 	var slicefncs = []func(ctx context.Context, suptr unsafe.Pointer, head _SliceHeader) *Error{}
 	if meta.maxSize.Valid {
 		maxs := meta.maxSize.V

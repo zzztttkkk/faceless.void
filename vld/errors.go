@@ -46,7 +46,7 @@ func init() {
 			RemoveCommonPrefix: true,
 			AllSlice:           true,
 			AllSliceName:       "AllErrorKinds",
-			NameOverwrites: map[ErrorKind]string{},
+			NameOverwrites:     map[ErrorKind]string{},
 		}
 	})
 }
@@ -69,18 +69,18 @@ func (e *Error) Error() string {
 	isfirst := true
 	for i := len(e.Fields) - 1; i >= 0; i-- {
 		fuptr := e.Fields[i]
-		fptr := (*lion.Field[VldFieldMeta])(fuptr)
+		fptr := (*lion.Field)(fuptr)
 
 		if isfirst {
 			isfirst = false
-			pkgpath := fptr.Typeinfo().GoType.PkgPath()
+			pkgpath := fptr.TypeInfo().GoType.PkgPath()
 			idx := strings.LastIndexByte(pkgpath, '/')
 			sb.WriteString(pkgpath[idx+1:])
 			sb.WriteByte('.')
-			sb.WriteString(fptr.Typeinfo().GoType.Name())
+			sb.WriteString(fptr.TypeInfo().GoType.Name())
 		} else {
 			sb.WriteByte(' ')
-			sb.WriteString(fptr.Typeinfo().GoType.Name())
+			sb.WriteString(fptr.TypeInfo().GoType.Name())
 		}
 		sb.WriteByte('.')
 		sb.WriteString(fptr.StructField().Name)
@@ -101,7 +101,7 @@ func (e *Error) Error() string {
 	return sb.String()
 }
 
-func newerr(field *lion.Field[VldFieldMeta], meta *VldFieldMeta, kind ErrorKind) *Error {
+func newerr(field *lion.Field, meta *VldFieldMeta, kind ErrorKind) *Error {
 	fs := make([]unsafe.Pointer, 0, 4)
 	fs = append(fs, unsafe.Pointer(field))
 	return &Error{
@@ -127,7 +127,7 @@ func (err *Error) withre(re error) *Error {
 	return err
 }
 
-func (err *Error) appendfield(filed *lion.Field[VldFieldMeta]) *Error {
+func (err *Error) appendfield(filed *lion.Field) *Error {
 	err.Fields = append(err.Fields, unsafe.Pointer(filed))
 	return err
 }
