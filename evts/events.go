@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/zzztttkkk/faceless.void/internal"
-	"github.com/zzztttkkk/lion"
 )
 
 type EventListener func(at int64, evtany any)
@@ -190,20 +189,19 @@ func (ebus *_EventBus) Emit(evt any) error {
 }
 
 func (bus *_EventBus) Close(gracefully bool) {
-	runtime.Gosched()
-
 	bus.lock.Lock()
 	bus.closed = true
 	bus.lock.Unlock()
 
 	if gracefully {
+		runtime.Gosched()
 		bus.wg.Wait()
 	}
 }
 
-func Register[T any](bus *_EventBus, handler func(at int64, evt *T)) {
-	bus.AddListener(lion.Typeof[T](), func(at int64, evtany any) {
+func Wrap[T any](handler func(at int64, evt *T)) EventListener {
+	return func(at int64, evtany any) {
 		valptr := (*anyface)(unsafe.Pointer(&evtany)).valptr
 		handler(at, (*T)(valptr))
-	})
+	}
 }
