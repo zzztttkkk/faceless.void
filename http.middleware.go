@@ -9,7 +9,7 @@ import (
 
 type HttpMiddlewareFunc func(ctx context.Context, next func(context.Context) error, req *http.Request, respw http.ResponseWriter) error
 
-func wrapMiddleware(fnc HttpHandlerFunc, middleware []HttpMiddlewareFunc) HttpHandlerFunc {
+func wrapMiddleware(fnc HandleFunc, middleware []HttpMiddlewareFunc) HandleFunc {
 	mc := len(middleware)
 	return func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
 		var idx = -1

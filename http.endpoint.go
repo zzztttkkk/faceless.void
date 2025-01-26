@@ -18,71 +18,70 @@ import (
 	"github.com/zzztttkkk/faceless.void/internal"
 )
 
-type endpointBuilder struct {
+type _EndpointBuilder struct {
 	pairs      []internal.Pair[string]
 	middleware []HttpMiddlewareFunc
 	funced     bool
 }
 
-func Endpoint() *endpointBuilder {
-	return &endpointBuilder{}
+var (
+	allEndpointBuilders sync.Map
+)
+
+func Endpoint() *_EndpointBuilder {
+	obj := &_EndpointBuilder{}
+	allEndpointBuilders.Store(obj, true)
+	return obj
 }
 
-func (opts *endpointBuilder) Filename(filename string) *endpointBuilder {
-	opts.pairs = append(opts.pairs, internal.PairOf("filename", filename))
-	return opts
+func (builder *_EndpointBuilder) Filename(filename string) *_EndpointBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("filename", filename))
+	return builder
 }
 
-func (opts *endpointBuilder) Methods(methods ...string) *endpointBuilder {
-	opts.pairs = append(opts.pairs, internal.PairOf("methods", methods))
-	return opts
+func (builder *_EndpointBuilder) Methods(methods ...string) *_EndpointBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("methods", methods))
+	return builder
 }
 
-func (opts *endpointBuilder) Pattern(pattern string) *endpointBuilder {
-	opts.pairs = append(opts.pairs, internal.PairOf("pattern", pattern))
-	return opts
+func (builder *_EndpointBuilder) Pattern(pattern string) *_EndpointBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("pattern", pattern))
+	return builder
 }
 
-func (opts *endpointBuilder) Description(description string) *endpointBuilder {
-	opts.pairs = append(opts.pairs, internal.PairOf("description", description))
-	return opts
+func (builder *_EndpointBuilder) Description(description string) *_EndpointBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("description", description))
+	return builder
 }
 
-func (opts *endpointBuilder) Input(vals ...any) *endpointBuilder {
-	opts.pairs = append(opts.pairs, internal.PairOf("input", vals))
-	return opts
+func (builder *_EndpointBuilder) Input(vals ...any) *_EndpointBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("input", vals))
+	return builder
 }
 
-func (opts *endpointBuilder) Output(vals ...any) *endpointBuilder {
-	opts.pairs = append(opts.pairs, internal.PairOf("output", vals))
-	return opts
+func (builder *_EndpointBuilder) Output(vals ...any) *_EndpointBuilder {
+	builder.pairs = append(builder.pairs, internal.PairOf("output", vals))
+	return builder
 }
 
-func (opts *endpointBuilder) Use(fncs ...HttpMiddlewareFunc) *endpointBuilder {
-	opts.middleware = append(opts.middleware, fncs...)
-	return opts
+func (builder *_EndpointBuilder) Use(fncs ...HttpMiddlewareFunc) *_EndpointBuilder {
+	builder.middleware = append(builder.middleware, fncs...)
+	return builder
 }
 
-func (opts *endpointBuilder) Func(fnc HttpHandlerFunc) *endpointBuilder {
-	if opts.funced {
+func (builder *_EndpointBuilder) Func(fnc HandleFunc) *_EndpointBuilder {
+	if builder.funced {
 		panic("endpoint already has handle function")
 	}
-	opts.funced = true
-	opts.pairs = append(opts.pairs, internal.PairOf("func", fnc))
-	return opts
+	builder.funced = true
+	builder.pairs = append(builder.pairs, internal.PairOf("func", fnc))
+	return builder
 }
 
-func (opts *endpointBuilder) AnyFunc(fnc any) *endpointBuilder {
-	if opts.funced {
-		panic("endpoint already has handle function")
+func (builder *_EndpointBuilder) Endable(enable bool) {
+	if !enable {
+		allEndpointBuilders.Delete(builder)
 	}
-	opts.funced = true
-	opts.pairs = append(opts.pairs, internal.PairOf("anyfunc", fnc))
-	return opts
-}
-
-func (opts *endpointBuilder) Register() {
-	registerHttpEndpoint(opts)
 }
 
 type IHttpMarshaler interface {
@@ -90,18 +89,19 @@ type IHttpMarshaler interface {
 	Marshal(v any, buf io.Writer) error
 }
 
-type httpEndpoint struct {
+type _HTTPEndpoint struct {
 	filename  string
 	methods   []string
 	pattern   string
-	handler   HttpHandlerFunc
+	handler   HandleFunc
 	argTypes  []reflect.Type
 	outTypes  []reflect.Type
 	marshaler IHttpMarshaler
+	appscope  *TAppScope
 }
 
 // ServeHTTP implements http.Handler.
-func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (endpoint *_HTTPEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodOptions {
 		return
 	}
@@ -111,7 +111,7 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	ctx := context.WithValue(req.Context(), internal.CtxKeyForHttpRequest, req)
+	ctx := context.WithValue(req.Context(), internal.CtxKeyForAppScope, endpoint.appscope)
 	err := endpoint.handler(ctx, req, rw)
 
 	if err != nil {
@@ -122,18 +122,13 @@ func (endpoint *httpEndpoint) ServeHTTP(rw http.ResponseWriter, req *http.Reques
 }
 
 var (
-	allEndpointsLock        sync.Mutex
-	allEndpointsDone        bool
-	allEndpoints            = make([]httpEndpoint, 0)
 	anonymousFuncNameRegexp = regexp.MustCompile(`^func(\d+)$`)
 )
 
-func registerHttpEndpoint(opts *endpointBuilder) {
-	endpoint := httpEndpoint{}
+func registerHttpEndpoint(opts *_EndpointBuilder) {
+	endpoint := _HTTPEndpoint{}
 
-	var fnc HttpHandlerFunc
-	var anyfnc any
-
+	var fnc HandleFunc
 	for _, opt := range opts.pairs {
 		switch opt.Key {
 		case "filename":
@@ -163,12 +158,7 @@ func registerHttpEndpoint(opts *endpointBuilder) {
 			}
 		case "func":
 			{
-				fnc = opt.Val.(HttpHandlerFunc)
-				break
-			}
-		case "anyfunc":
-			{
-				anyfnc = opt.Val
+				fnc = opt.Val.(HandleFunc)
 				break
 			}
 		}
@@ -176,18 +166,9 @@ func registerHttpEndpoint(opts *endpointBuilder) {
 
 	var funcv *runtime.Func
 	var filename string
-	if anyfnc != nil {
-		rv := reflect.ValueOf(anyfnc)
-		if rv.Kind() != reflect.Func {
-			panic(fmt.Errorf("`%#v` is not a function", fnc))
-		}
-		funcv := runtime.FuncForPC(rv.Pointer())
-		filename, _ = funcv.FileLine(0)
-		fnc = endpoint.mkhandler(filename, rv)
-	} else {
-		funcv = runtime.FuncForPC(reflect.ValueOf(fnc).Pointer())
-		filename, _ = funcv.FileLine(0)
-	}
+	funcv = runtime.FuncForPC(reflect.ValueOf(fnc).Pointer())
+	filename, _ = funcv.FileLine(0)
+
 	endpoint.handler = fnc
 	if endpoint.filename == "" {
 		endpoint.filename = filename
@@ -200,148 +181,33 @@ func registerHttpEndpoint(opts *endpointBuilder) {
 			panic(fmt.Errorf("`%s` need a pattern option", funcv.Name()))
 		}
 	}
-
-	allEndpointsLock.Lock()
-	if allEndpointsDone {
-		allEndpointsLock.Unlock()
-		panic(fmt.Errorf("http endpoint register is already done."))
-	}
-
-	defer allEndpointsLock.Unlock()
-	allEndpoints = append(allEndpoints, endpoint)
 }
 
-func (endpoint *httpEndpoint) mkhandler(funcname string, rv reflect.Value) HttpHandlerFunc {
-	hf, ok := rv.Interface().(HttpHandlerFunc)
-	if ok {
-		return hf
-	}
-	hfRaw, ok := rv.Interface().(func(context.Context, *http.Request, http.ResponseWriter) error)
-	if ok {
-		return HttpHandlerFunc(hfRaw)
-	}
-
-	rt := rv.Type()
-	numin := rt.NumIn()
-
-	var argPeeks []func(ctx context.Context, req *http.Request) (reflect.Value, error)
-	for i := 0; i < numin; i++ {
-		argT := rt.In(i)
-		if i == 0 {
-			if !argT.Implements(ictxType) {
-				panic(fmt.Errorf("`function %s`'s first param type must be `context.Context`", funcname))
-			}
-			continue
-		}
-
-		isptr := false
-		if argT.Kind() == reflect.Pointer {
-			argT = argT.Elem()
-			isptr = true
-		}
-		endpoint.argTypes = append(endpoint.argTypes, argT)
-
-		if isptr {
-			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
-				ptrv := reflect.New(argT)
-				// err := ptrv.Interface().(IBinding).Binding(ctx)
-				// if err != nil {
-				// 	return reflect.Value{}, err
-				// }
-				return ptrv, nil
-			})
-		} else {
-			argPeeks = append(argPeeks, func(ctx context.Context, req *http.Request) (reflect.Value, error) {
-				ptrv := reflect.New(argT)
-				// err := ptrv.Interface().(IBinding).Binding(ctx)
-				// if err != nil {
-				// 	return reflect.Value{}, err
-				// }
-				return ptrv.Elem(), nil
-			})
-		}
-	}
-
-	var send func(outs []reflect.Value, respw http.ResponseWriter) error
-	switch rt.NumOut() {
-	case 0:
-		{
-			send = func(_ []reflect.Value, respw http.ResponseWriter) error {
-				respw.WriteHeader(http.StatusOK)
-				_, err := respw.Write(nil)
-				return err
-			}
+func mountEndpoints(endpoint *_HTTPEndpoint, mux *http.ServeMux, root string, globs ...string) {
+	matched := false
+	for _, glob := range globs {
+		if ok, _ := filepath.Match(glob, endpoint.filename); ok {
+			matched = true
 			break
 		}
-	case 1:
-		{
-			outtype := rt.Out(0)
-			if outtype == reflect.TypeOf((*int)(nil)).Elem() {
-				send = func(outs []reflect.Value, respw http.ResponseWriter) error {
-					code := outs[0].Int()
-					respw.WriteHeader(int(code))
-					_, err := respw.Write(nil)
-					return err
-				}
-				break
-			}
-		}
+	}
+	if !matched {
+		return
 	}
 
-	return HttpHandlerFunc(func(ctx context.Context, req *http.Request, respw http.ResponseWriter) error {
-		if endpoint.marshaler != nil {
-		}
-
-		args := make([]reflect.Value, 0, numin)
-		args = append(args, reflect.ValueOf(ctx))
-
-		for _, peek := range argPeeks {
-			argv, err := peek(ctx, req)
-			if err != nil {
-				return err
-			}
-			args = append(args, argv)
-		}
-		outs := rv.Call(args)
-		return send(outs, respw)
-	})
-}
-
-func mountEndpoints(mux *http.ServeMux, root string, globs ...string) {
-	allEndpointsLock.Lock()
-	defer allEndpointsLock.Unlock()
-
-	if allEndpointsDone {
-		panic("endpoint register is done")
+	rel, err := filepath.Rel(root, endpoint.filename)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
-	for idx := range allEndpoints {
-		endpoint := &(allEndpoints[idx])
-		matched := false
-		for _, glob := range globs {
-			if ok, _ := filepath.Match(glob, endpoint.filename); ok {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			continue
-		}
-
-		rel, err := filepath.Rel(root, endpoint.filename)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		if strings.HasPrefix(rel, ".") {
-			fmt.Println(">>>")
-			continue
-		}
-
-		fmt.Println(fmt.Sprintf("%s/%s", rel, endpoint.pattern))
-		mux.Handle(fmt.Sprintf("%s/%s", rel, endpoint.pattern), endpoint)
+	if strings.HasPrefix(rel, ".") {
+		fmt.Println(">>>")
+		return
 	}
+
+	fmt.Println(fmt.Sprintf("%s/%s", rel, endpoint.pattern))
+	mux.Handle(fmt.Sprintf("%s/%s", rel, endpoint.pattern), endpoint)
 }
 
 func readPkgName(fp string) string {
@@ -409,8 +275,4 @@ func RunHTTP(main func(), sites ...HttpSite) {
 	maingo, _ := mainfunc.FileLine(0)
 	rootpkg := filepath.Dir(maingo)
 	fmt.Println(rootpkg)
-
-	allEndpointsLock.Lock()
-	allEndpointsDone = true
-	allEndpointsLock.Unlock()
 }

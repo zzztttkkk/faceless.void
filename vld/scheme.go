@@ -301,7 +301,7 @@ var (
 	typeofTime = lion.Typeof[time.Time]()
 )
 
-func Vld[T any](ctx context.Context, ptr *T) error {
+func Validate[T any](ctx context.Context, ptr *T) error {
 	gotype := lion.Typeof[T]()
 	scheme, ok := schemes[gotype]
 	if !ok {

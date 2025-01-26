@@ -79,7 +79,7 @@ func TestVld(t *testing.T) {
 	params.EMmap = map[string]E{
 		"xx": {Email: "xxxx@q.com"},
 	}
-	err := vld.Vld(context.Background(), &params)
+	err := vld.Validate(context.Background(), &params)
 	fmt.Println(err)
 }
 
@@ -101,7 +101,7 @@ func TestEPTest(t *testing.T) {
 		EV:   E{Email: "xxx@qq.com"},
 		EPtr: &E{Email: "ff@w.com"},
 	}
-	fmt.Println(vld.Vld(context.Background(), &ept))
+	fmt.Println(vld.Validate(context.Background(), &ept))
 }
 
 type ESTest struct {
@@ -137,7 +137,7 @@ func TestESTVld(t *testing.T) {
 			{Email: "xxx@q.com"},
 		},
 	}
-	fmt.Println(vld.Vld(context.Background(), &est))
+	fmt.Println(vld.Validate(context.Background(), &est))
 }
 
 type EMTest struct {
@@ -164,5 +164,5 @@ func TestEMTest(t *testing.T) {
 			"y": {Email: "ccc@s.com"},
 		},
 	}
-	fmt.Println(vld.Vld(context.Background(), &emt))
+	fmt.Println(vld.Validate(context.Background(), &emt))
 }
